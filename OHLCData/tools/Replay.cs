@@ -16,17 +16,19 @@ namespace MarketBot
 		// The strategy calculates all the indicators, and because of that, don't keep creating new strategy instances. Only create them once per replay.
 		// The replay feeds the collection data to the strategy
 
+		
+
 		public IExchangeOHLCVCollection Data;
-		public IStrategy Strategy;
+		public ISignalStrategy Strategy;
 
 		public bool DataIsCollected = false;
 
-		public Replay(Exchange exchange, string symbol, OHLCVInterval interval, int periods)
+		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods)
 		{
-			Exchanges.CollectOHLCV(exchange, symbol, interval, periods, DataCollected);
+			ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, DataCollected);
 		}
 
-		public void SetStrategy(IStrategy strategy)
+		public void SetStrategy(ISignalStrategy strategy)
 		{
 			Strategy = strategy;
 		}

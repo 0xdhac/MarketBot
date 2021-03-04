@@ -11,7 +11,12 @@ namespace MarketBot
 {
 	class BinanceOHLCVCollection : IExchangeOHLCVCollection
 	{
-		public List<OHLCVPeriod> Data { get; set; }
+		public CustomList<OHLCVPeriod> Data { get; set; }
+
+		public BinanceOHLCVCollection()
+		{
+			Data = new CustomList<OHLCVPeriod>();
+		}
 
 		public void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback)
 		{
@@ -20,19 +25,19 @@ namespace MarketBot
 			{
 				using (var client = new BinanceClient())
 				{
-					DateTime dt = DateTime.Now;
+					DateTime dt = DateTime.UtcNow;
 					while (periods > 0)
 					{
 						int limit = (periods >= 1000) ? 1000 : periods;
 						periods -= 1000;
 
 						var data = client.Spot.Market.GetKlines(symbol, klv, null, dt, limit);
-						foreach (var candle in data.Data.Reverse())
+						foreach (var candle in data.Data)
 						{
 							Data.Add(ConvertOHLCVPeriod(candle));
 						}
 
-						dt = Data[Data.Count - 1].OpenTime - new TimeSpan(0, 0, 1);
+						dt = Data[Data.Count - 1].OpenTime.Subtract(new TimeSpan(0, 0, 1));
 					}
 				}
 
@@ -88,6 +93,8 @@ namespace MarketBot
 			p.Low = period.Low;
 			p.Close = period.Close;
 			p.Volume = period.BaseVolume;
+			p.OpenTime = period.OpenTime;
+			p.CloseTime = period.CloseTime;
 
 			return p;
 		}

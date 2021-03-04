@@ -6,20 +6,20 @@ using System.Threading.Tasks;
 
 namespace MarketBot
 {
-	enum Exchange
+	public enum Exchanges
 	{
 		Binance,
 		Kucoin,
 		Ameritrade
 	};
 
-	static class Exchanges
+	static class ExchangeTasks
 	{
-		public static IExchangeOHLCVCollection CollectOHLCV(Exchange ex, string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback)
+		public static IExchangeOHLCVCollection CollectOHLCV(Exchanges ex, string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback)
 		{
 			switch (ex)
 			{
-				case Exchange.Binance:
+				case Exchanges.Binance:
 					BinanceOHLCVCollection collection = new BinanceOHLCVCollection();
 					collection.CollectOHLCV(symbol, interval, periods, callback);
 					return collection;

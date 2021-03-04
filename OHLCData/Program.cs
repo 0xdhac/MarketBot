@@ -10,6 +10,8 @@ using Binance.Net.Objects.Spot;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Logging;
 using System.IO;
+using dotenv.net;
+using MarketBot.indicators;
 
 namespace MarketBot
 {
@@ -17,49 +19,42 @@ namespace MarketBot
 	{
 		static void Main(string[] args)
 		{
+			DotEnv.Config(true, "./cfg/api.env");
+
+			string api_key = Environment.GetEnvironmentVariable("BINANCE_API_KEY");
+			string secret_key = Environment.GetEnvironmentVariable("BINANCE_SECRET_KEY");
+
 			BinanceClient.SetDefaultOptions(new BinanceClientOptions()
 			{
-				ApiCredentials = new ApiCredentials("uxxCQbHuAvZNKsH2gOqewAsnymgt8qvzFOCqoKgazVhGlXVx4rvuWGA0wQIvkzNM", "YyysydbbeM1t3PEOBat0X7y5OgTr43P7LlhVzmLGTacON8yFPzY76KsOm2WRgI58"),
+				ApiCredentials = new ApiCredentials(api_key, secret_key),
 				//LogVerbosity = LogVerbosity.Debug,
 				//LogWriters = new List<TextWriter> { Console.Out }
 			});
 
 			BinanceSocketClient.SetDefaultOptions(new BinanceSocketClientOptions()
 			{
-				ApiCredentials = new ApiCredentials("uxxCQbHuAvZNKsH2gOqewAsnymgt8qvzFOCqoKgazVhGlXVx4rvuWGA0wQIvkzNM", "YyysydbbeM1t3PEOBat0X7y5OgTr43P7LlhVzmLGTacON8yFPzY76KsOm2WRgI58"),
+				ApiCredentials = new ApiCredentials(api_key, secret_key),
 				//LogVerbosity = LogVerbosity.Debug,
 				//LogWriters = new List<TextWriter> { Console.Out }
 			});
 
-			using (var client = new BinanceClient())
+			SMA Indicator = new SMA(20);
+			SymbolData sym_data = new SymbolData(Exchanges.Binance, OHLCVInterval.FifteenMinute, "BTCUSDT", 200);
+			sym_data.ApplyIndicator(Indicator);
+
+			foreach(var indicator in sym_data.Indicators)
 			{
-				SymbolData sym_data = new SymbolData("BTCUSDT", KlineInterval.FifteenMinutes, 10000, testcb);
-				//Console.WriteLine(price.Data.BestAskPrice);
-				/*
-				// Spot.Order | Spot order info endpoints
-				client.Spot.Order.GetAllOrders("BTCUSDT");
-				// Spot.System | Spot system endpoints
-				client.Spot.System.GetExchangeInfo();
-				// Spot.UserStream | Spot user stream endpoints. Should be used to subscribe to a user stream with the socket client
-				client.Spot.UserStream.StartUserStream();
-				// Spot.Futures | Transfer to/from spot from/to the futures account + cross-collateral endpoints
-				client.Spot.Futures.TransferFuturesAccount("ASSET", 1, FuturesTransferType.FromSpotToUsdtFutures);
-				*/
+				Console.WriteLine(indicator.GetType().Name);
 			}
 
 			Console.ReadLine();
-
-			// Create replay with given candle chart data and strategy. The replay will iterate through each candle and run the set strategy each time looking for a buy. Make sure not to open a position when already in one.
 		}
 
-		static void testcb(SymbolData symbolData)
+		static void testcb(IExchangeOHLCVCollection data)
 		{
-			int i = 0;
-			foreach(var d in symbolData.Data)
-			{
-				Console.WriteLine(d.High);
-			}
 			
 		}
+
+		// Create replay with given candle chart data and strategy. The replay will iterate through each candle and run the set strategy each time looking for a buy. Make sure not to open a position when already in one.
 	}
 }

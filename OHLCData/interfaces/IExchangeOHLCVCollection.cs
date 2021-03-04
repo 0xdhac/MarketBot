@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MarketBot
 {
-	enum OHLCVInterval
+	public enum OHLCVInterval
 	{
 		OneMinute = 0,
 		ThreeMinute,
@@ -39,11 +39,11 @@ namespace MarketBot
 		public DateTime CloseTime { get; set; }
 	};
 
-	delegate void OHLCVCollectionCompletedCallback(IExchangeOHLCVCollection callback);
+	public delegate void OHLCVCollectionCompletedCallback(IExchangeOHLCVCollection callback);
 
-	interface IExchangeOHLCVCollection
+	public interface IExchangeOHLCVCollection
 	{
-		List<OHLCVPeriod> Data { get; set; }
+		CustomList<OHLCVPeriod> Data { get; set; }
 		void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback);
 	}
 }
