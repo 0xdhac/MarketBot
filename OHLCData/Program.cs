@@ -27,34 +27,20 @@ namespace MarketBot
 			BinanceClient.SetDefaultOptions(new BinanceClientOptions()
 			{
 				ApiCredentials = new ApiCredentials(api_key, secret_key),
-				//LogVerbosity = LogVerbosity.Debug,
-				//LogWriters = new List<TextWriter> { Console.Out }
+				LogVerbosity = LogVerbosity.Info,
+				LogWriters = new List<TextWriter> { Console.Out }
 			});
 
 			BinanceSocketClient.SetDefaultOptions(new BinanceSocketClientOptions()
 			{
 				ApiCredentials = new ApiCredentials(api_key, secret_key),
-				//LogVerbosity = LogVerbosity.Debug,
-				//LogWriters = new List<TextWriter> { Console.Out }
+				LogVerbosity = LogVerbosity.Info,
+				LogWriters = new List<TextWriter> { Console.Out }
 			});
-
-			SMA Indicator = new SMA(20);
-			SymbolData sym_data = new SymbolData(Exchanges.Binance, OHLCVInterval.FifteenMinute, "BTCUSDT", 200);
-			sym_data.ApplyIndicator(Indicator);
-
-			foreach(var indicator in sym_data.Indicators)
-			{
-				Console.WriteLine(indicator.GetType().Name);
-			}
+			
+			Replay r = new Replay(Exchanges.Binance, "BTCUSDT", OHLCVInterval.FortyFiveMinute, 30000, DateTime.UtcNow);
 
 			Console.ReadLine();
 		}
-
-		static void testcb(IExchangeOHLCVCollection data)
-		{
-			
-		}
-
-		// Create replay with given candle chart data and strategy. The replay will iterate through each candle and run the set strategy each time looking for a buy. Make sure not to open a position when already in one.
 	}
 }

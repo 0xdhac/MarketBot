@@ -1,14 +1,31 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace MarketBot.interfaces
-{ 
-	public abstract class Indicator
+{
+	public interface IIndicator
 	{
+		void AttachSource(IExchangeOHLCVCollection source);
+		void FullCalculate();
+	}
+	public abstract class Indicator<T>: IIndicator
+	{
+		public List<T> IndicatorData { get; set; }
 		public CustomList<OHLCVPeriod> DataSource;
+
+		public Indicator()
+		{
+			IndicatorData = new List<T>();
+		}
+
+		public T this[int index]
+		{
+			get => IndicatorData[index];
+		}
 
 		public virtual void AttachSource(IExchangeOHLCVCollection source)
 		{

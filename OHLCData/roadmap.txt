@@ -1,0 +1,12 @@
+﻿Features to implement:
+- VWAP indicator
+- RSI indicator
+- CMF indicator
+- Create a strategy type that can read other symboldatas
+- Support and Resistance break strategy
+- Candlestick pattern recognition strategy (Evening star, morning star, etc..)
+- Donchian Channels Strategy
+- Bollinger Bands Strategy
+- Monte Carlo Randomized Strategy Backtesting
+	- Create as many indicators as I can
+	- Create an indicator that can apply indicators to other indicators. For example, how the MACD signal line works; an EMA of the MACD which is the difference of two EMAs of the price data together.

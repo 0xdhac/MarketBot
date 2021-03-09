@@ -5,10 +5,15 @@ using System.Text;
 using System.Threading.Tasks;
 using MarketBot.interfaces;
 
-namespace MarketBot
+namespace MarketBot.indicators
 {
-	class RSIIndicator : Indicator<Tuple<bool, decimal>>
+	public class CMF : Indicator<Tuple<bool, decimal>>
 	{
+		public CMF(int length) : base()
+		{
+
+		}
+
 		public override void Calculate(int period)
 		{
 			

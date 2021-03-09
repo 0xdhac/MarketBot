@@ -39,8 +39,8 @@
     <Reference Include="CryptoExchange.Net, Version=3.7.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\CryptoExchange.Net.3.7.0\lib\netstandard2.0\CryptoExchange.Net.dll</HintPath>
     </Reference>
-    <Reference Include="CsvHelper, Version=25.0.0.0, Culture=neutral, PublicKeyToken=8c4959082be5c823, processorArchitecture=MSIL">
-      <HintPath>..\packages\CsvHelper.25.0.0\lib\net47\CsvHelper.dll</HintPath>
+    <Reference Include="CsvHelper, Version=26.0.0.0, Culture=neutral, PublicKeyToken=8c4959082be5c823, processorArchitecture=MSIL">
+      <HintPath>..\packages\CsvHelper.26.0.1\lib\net47\CsvHelper.dll</HintPath>
     </Reference>
     <Reference Include="dotenv.net, Version=2.1.3.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\dotenv.net.2.1.3\lib\netstandard2.0\dotenv.net.dll</HintPath>
@@ -157,11 +157,15 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CSVToOHLCData.cs" />
     <Compile Include="CustomList.cs" />
     <Compile Include="exchanges\binance\BinanceOHLCVCollection.cs" />
     <Compile Include="exchanges\binance\BinanceOrders.cs" />
     <Compile Include="exchanges\binance\BinanceWallet.cs" />
     <Compile Include="exchanges\Exchanges.cs" />
+    <Compile Include="indicators\ATR.cs" />
+    <Compile Include="indicators\BollingerBands.cs" />
+    <Compile Include="indicators\CMF.cs" />
     <Compile Include="indicators\DonchianChannels.cs" />
     <Compile Include="indicators\EMA.cs" />
     <Compile Include="indicators\MA.cs" />
@@ -169,20 +173,25 @@
     <Compile Include="indicators\RSI.cs" />
     <Compile Include="indicators\SMA.cs" />
     <Compile Include="indicators\Stochastic.cs" />
+    <Compile Include="indicators\TR.cs" />
     <Compile Include="indicators\VWAP.cs" />
     <Compile Include="interfaces\IExchangeOHLCVCollection.cs" />
     <Compile Include="interfaces\IIndicators.cs" />
+    <Compile Include="interfaces\IRiskStrategy.cs" />
+    <Compile Include="strategies\position\ATR.cs" />
+    <Compile Include="strategies\position\Swing.cs" />
     <Compile Include="strategies\signals\AbsoluteStrengthHistogram.cs" />
     <Compile Include="strategies\signals\BollingerBands.cs" />
+    <Compile Include="strategies\signals\Break.cs" />
     <Compile Include="strategies\signals\MACDCrossover.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="strategies\position\AverageTrueRange.cs" />
     <Compile Include="strategies\position\DonchianChannels.cs" />
     <Compile Include="strategies\position\ParabolicSAR.cs" />
+    <Compile Include="strategies\signals\Pair.cs" />
     <Compile Include="tools\RealtimeBot.cs" />
     <Compile Include="tools\Replay.cs" />
-    <Compile Include="interfaces\ISignal.cs" />
+    <Compile Include="interfaces\IEntryStrategy.cs" />
     <Compile Include="SymbolData.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -194,8 +203,13 @@
     <Folder Include="exchanges\ameritrade\" />
     <Folder Include="exchanges\kucoin\" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="roadmap.txt" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>XCOPY "$(ProjectDir)cfg\" "$(TargetDir)\cfg" /s /i /y</PostBuildEvent>
+    <PostBuildEvent>IF NOT EXIST "$(TargetDir)\cfg" XCOPY "$(ProjectDir)cfg\" "$(TargetDir)\cfg" /s /i /y
+
+Rem if $(ConfigurationName) == Debug</PostBuildEvent>
   </PropertyGroup>
 </Project>

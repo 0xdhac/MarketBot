@@ -4,44 +4,214 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Binance.Net.Interfaces;
+using MarketBot.strategies.signals;
+using MarketBot.interfaces;
+using MarketBot.strategies.position;
 
 namespace MarketBot
 {
 	class Replay
 	{
-		// Give strategy the OHLCVCollection data.
-		
-		// The replay goes through all candles and applies the strategy until it finds an entry point.
-		// The exit point is calculated in the replay (not the strategy) because the exit point has nothing to do with the strategy.
-		// The strategy calculates all the indicators, and because of that, don't keep creating new strategy instances. Only create them once per replay.
-		// The replay feeds the collection data to the strategy
+		public Strategy Current_Strategy;
+		public RiskStrategy Exit_Strategy;
+		public SymbolData Symbol;
 
-		
+		private int Wins = 0;
+		private int Losses = 0;
+		private decimal RiskProfitRatio = (decimal)0.1;
+		private int Trades = 0;
+		private int TradePeriodsTotal = 0;
+		private decimal AccountTotal = 10000;
+		private decimal AccountTotal_Start = 0;
+		private decimal BetAmount = 0;
+		private int Slices = 5;
+		private int SlicesUsed = 0;
+		private bool StrategyReady = false;
+		private bool SymbolLoaded = false;
 
-		public IExchangeOHLCVCollection Data;
-		public ISignalStrategy Strategy;
-
-		public bool DataIsCollected = false;
-
-		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods)
+		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods, DateTime? start)
 		{
-			ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, DataCollected);
+			Console.WriteLine($"Starting replay/collecting symbol data for {symbol} on exchange {exchange}.");
+			Symbol = new SymbolData("./EURUSD_1m.csv", OHLCVInterval.OneMinute, CSVToOHLCData.HistDataConversion, OnSymbolLoaded, 200000);
+			//Symbol = new SymbolData(exchange, interval, symbol, periods, OnSymbolLoaded, start);
+			//Current_Strategy = new Pair(Symbol, OnStrategyReady, "BTCUSDT", "MACDCrossover");
+			Exit_Strategy = new Swing(Symbol, 14);
+			new MACDCrossover(Symbol, OnStrategyReady);
+			
 		}
 
-		public void SetStrategy(ISignalStrategy strategy)
+		void OnSymbolLoaded(SymbolData data)
 		{
-			Strategy = strategy;
+			if(StrategyReady == true)
+			{
+				Run();
+			}
+
+			SymbolLoaded = true;
 		}
 
-		void DataCollected(IExchangeOHLCVCollection data)
+		public void OnStrategyReady(Strategy strategy)
 		{
-			Data = data;
-			DataIsCollected = true;
+			Current_Strategy = strategy;
+			if (SymbolLoaded == true)
+			{
+				Run();
+			}
+
+			StrategyReady = true;
 		}
 
-		void Start()
+		public void Run()
 		{
+			AccountTotal_Start = AccountTotal;
+			Console.WriteLine($"Running strategy on {Symbol.Symbol}");
+			bool buy_in_pos = bool.Parse(Environment.GetEnvironmentVariable("BUY_WHEN_IN_POSITION"));
+			for (int period = 0; period < Symbol.Data.Data.Count; period++)
+			{
+				List<Position> position_list = Position.FindPositions(Symbol); //<-- this function might need to have multiple definitions. One that takes in SymbolData object, and one that takes in symbol info, like Exchange and Symbol name
 
+				if (position_list.Count > 0)
+				{
+					foreach (var position in position_list)
+					{
+						CheckForExit(Symbol, period, position);
+					}
+
+					if (buy_in_pos == true)
+					{
+						Current_Strategy.Run(period, OnReplaySignal);
+					}
+				}
+				else
+				{
+					Current_Strategy.Run(period, OnReplaySignal);
+				}
+			}
+
+			float profitability = (Losses == 0) ? -1 : ((float)Wins / (float)Losses) / ((float)1 / (float)RiskProfitRatio);
+			Console.WriteLine($"Period Interval: {Symbol.Interval}");
+			Console.WriteLine($"Number Of Periods: {Symbol.Data.Data.Count}");
+			Console.WriteLine($"Entry Strategy: {Current_Strategy.GetName()}");
+			Console.WriteLine($"Exit Strategy: {Exit_Strategy.GetName()}");
+			Console.WriteLine($"Risk/Reward Ratio: 1:{(float)RiskProfitRatio}");
+			Console.WriteLine($"Average Number of Periods: {(float)TradePeriodsTotal / (float)Trades}");
+			Console.WriteLine($"Wins: {Wins}");
+			Console.WriteLine($"Losses: {Losses}");
+			Console.WriteLine($"Profitability: {profitability}");
+			Console.WriteLine($"AccountTotal@Start: {AccountTotal_Start}");
+			Console.WriteLine($"AccountTotal@End: {AccountTotal}");
+			Console.WriteLine("--------------------------------");
+		}
+
+		void OnReplaySignal(SymbolData data, int period, SignalType signal)
+		{
+			decimal entry_price = data.Data[period].Close;
+			decimal risk_price = Exit_Strategy.GetRiskPrice(period, signal);
+			decimal profit_price = ((entry_price - risk_price) * RiskProfitRatio) + entry_price;
+
+			if (SlicesUsed == 0)
+			{
+				BetAmount = AccountTotal / (decimal)Slices;
+				SlicesUsed = (SlicesUsed + 1) % Slices;
+			}
+
+			new Position(data, period, signal, entry_price, risk_price, profit_price);
+		}
+
+		public void ExitCallback(SymbolData data, Position pos, int period, bool TradeWon)
+		{
+			if (TradeWon)
+				Wins++;
+			else
+				Losses++;
+
+			Trades++;
+			TradePeriodsTotal += (period - pos.Period);
+
+
+			switch (pos.Type)
+			{
+				case SignalType.Long:
+					switch (TradeWon)
+					{
+						case true:
+							AccountTotal += ((pos.Profit * BetAmount) / pos.Entry) - BetAmount;
+							break;
+						case false:
+							AccountTotal += ((pos.Risk * BetAmount) / pos.Entry) - BetAmount;
+							break;
+					}
+					break;
+				case SignalType.Short:
+					switch (TradeWon)
+					{
+						case true:
+							AccountTotal -= ((pos.Profit * BetAmount) / pos.Entry) - BetAmount;
+							break;
+						case false:
+							AccountTotal -= ((pos.Risk * BetAmount) / pos.Entry) - BetAmount;
+							break;
+					}
+					break;
+			}
+
+			pos.Close();
+		}
+
+		private void CheckForExit(SymbolData data, int period, Position pos)
+		{
+			//Console.WriteLine($"{data.Data[pos.Period].CloseTime} {data.Data[pos.Period].Close} {pos.Profit} {pos.Risk}");
+			switch (pos.Type)
+			{
+				case SignalType.Long:
+					if(data.Data[period].High >= pos.Profit) // Profit hit
+					{
+						if(data.Data[period].Low <= pos.Risk) // Make sure candle didn't touch risk as well
+						{
+							pos.Close();
+						}
+						else // Trade won
+						{
+							ExitCallback(data, pos, period, true);
+						}
+					}
+					else if(data.Data[period].Low <= pos.Risk) // Risk hit
+					{
+						if (data.Data[period].High >= pos.Profit) // Make sure candle didn't touch profit as well
+						{
+							pos.Close();
+						}
+						else // Trade lost
+						{
+							ExitCallback(data, pos, period, false);
+						}
+					}
+					break;
+				case SignalType.Short:
+					if (data.Data[period].Low <= pos.Profit) // Profit hit
+					{
+						if (data.Data[period].High >= pos.Risk) // Make sure candle didn't touch risk as well
+						{
+							pos.Close();
+						}
+						else // Trade won
+						{
+							ExitCallback(data, pos, period, true);
+						}
+					}
+					else if (data.Data[period].High >= pos.Risk) // Risk hit
+					{
+						if (data.Data[period].Low <= pos.Profit) // Make sure candle didn't touch profit as well
+						{
+							pos.Close();
+						}
+						else // Trade lost
+						{
+							ExitCallback(data, pos, period, false);
+						}
+					}
+					break;
+			}
 		}
 	}
 }

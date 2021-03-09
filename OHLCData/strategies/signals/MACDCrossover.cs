@@ -8,47 +8,69 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.signals
 {
-	public class MACDCrossover : ISignalStrategy
+	public class MACDCrossover : Strategy
 	{
-		/*
-		 * Required indicators:
-		 * - EMA
-		 *	- Length: 200
-		 * - EMA
-		 *	- Length: 12
-		 * - EMA
-		 *  - Length: 26
-		 *  
-		 *  Check if indicator is of type 'EMA' and specified member 'Length' has an 'integer' value of '200'
-		 */
-
-		private Settings Requirements;
-
 		private EMA TrendLine;
-		private EMA MACDShort;
-		private EMA MACDLong;
+		private MACD MACD;
+		private ATR ATR;
 
-		public MACDCrossover()
+		public MACDCrossover(SymbolData data, StrategyReadyCallback callback) : base(data, callback) 
 		{
-			
+			callback(this);
 		}
 
-		public void ApplyIndicators(SymbolData data)
+		public override void ApplyIndicators()
 		{
-			TrendLine = (EMA)data.RequireIndicator("EMA",
+			TrendLine = (EMA)DataSource.RequireIndicator("EMA",
 				new KeyValuePair<string, object>("Length", 200));
 
-			MACDShort = (EMA)data.RequireIndicator("EMA",
-				new KeyValuePair<string, object>("Length", 12));
+			MACD = (MACD)DataSource.RequireIndicator("MACD",
+				new KeyValuePair<string, object>("Short_EMA_Length", 12),
+				new KeyValuePair<string, object>("Long_EMA_Length", 26),
+				new KeyValuePair<string, object>("Signal_EMA_Length", 9));
 
-			MACDLong = (EMA)data.RequireIndicator("EMA",
-				new KeyValuePair<string, object>("Length", 26));
+			ATR = (ATR)DataSource.RequireIndicator("ATR", new KeyValuePair<string, object>("Length", 14));
 		}
 
-		// Make function that applies this strategie's required indicators to the SymbolData object that requests it
-		public void Run(SymbolData data, SignalCallback callback)
+		public override SignalType StrategyConditions(int new_period, int old_period)
 		{
-			ApplyIndicators(data);
+			if (new_period < 300)
+				return SignalType.None;
+			/*
+			 * LONG CONDITION
+			 * - CURRENT MACD MUST BE ABOVE SIGNAL LINE
+			 * - OLD MACD MUST BE BELOW SIGNAL LINE
+			 */
+			if (DataSource.Data[new_period].Low > TrendLine[new_period].Item2 &&
+				MACD[new_period].Item2 - MACD[new_period].Item4 < 0 &&
+				MACD[old_period].Item2 - MACD[old_period].Item4 > 0 &&
+				MACD[new_period].Item2 < -(ATR[new_period].Item2 / 2)) // CHANGE THIS TOLERANCE VALUE TO BE RELATIVE TO THE 
+			{
+				return SignalType.Long;
+			}
+
+			/*
+			 * SHORT CONDITION
+			 * - CANDLE MUST NOT BE HIGHER THAN TRENDLINE AT ANY POINT
+			 * - CURRENT MACD MUST BE BELOW SIGNAL LINE
+			 * - OLD MACD MUST BE ABOVE SIGNAL LINE
+			 * - MACD MUST BE ABOVE ZERO LINE
+			 */
+			if (DataSource.Data[new_period].High < TrendLine[new_period].Item2 &&
+				MACD[new_period].Item2 - MACD[new_period].Item4 > 0 &&
+				MACD[old_period].Item2 - MACD[old_period].Item4 < 0 &&
+				MACD[new_period].Item2 > ATR[new_period].Item2 / 2)
+			{
+				//Console.WriteLine($"High: {DataSource.Data[new_period].High}, Trend: {TrendLine[new_period].Item2}, MACD: {MACD[new_period].Item2}, Signal: {MACD[new_period].Item3}");
+				return SignalType.Short;
+			}
+
+			return SignalType.None;
+		}
+
+		public override string GetName()
+		{
+			return "MACD Crossover";
 		}
 	}
 }

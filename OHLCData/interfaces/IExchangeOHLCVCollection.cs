@@ -44,6 +44,19 @@ namespace MarketBot
 	public interface IExchangeOHLCVCollection
 	{
 		CustomList<OHLCVPeriod> Data { get; set; }
-		void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback);
+		void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, DateTime? start = null);
+		OHLCVPeriod this[int index] { get; }
+	}
+
+	public class GenericOHLCVCollection : IExchangeOHLCVCollection
+	{
+		public CustomList<OHLCVPeriod> Data { get; set; }
+		public OHLCVPeriod this[int index] { get => Data[index]; }
+
+		public GenericOHLCVCollection()
+		{
+			Data = new CustomList<OHLCVPeriod>();
+		}
+		public void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, DateTime? start = null) { }
 	}
 }

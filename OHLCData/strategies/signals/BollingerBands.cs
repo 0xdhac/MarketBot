@@ -6,16 +6,24 @@ using System.Threading.Tasks;
 
 namespace MarketBot.strategies.signals
 {
-	class BollingerBands : ISignalStrategy
+	class BollingerBands : Strategy
 	{
-		public void ApplyIndicators(SymbolData data)
-		{
 
+		public BollingerBands(SymbolData data, StrategyReadyCallback callback) : base(data, callback)
+		{
+			callback(this);
 		}
 
-		public void Run(SymbolData data, SignalCallback callback)
+		public override SignalType StrategyConditions(int old_period, int new_period)
 		{
+			//throw new NotImplementedException();
 
+			return SignalType.None;
+		}
+
+		public override string GetName()
+		{
+			return "Bollinger Bands";
 		}
 	}
 }

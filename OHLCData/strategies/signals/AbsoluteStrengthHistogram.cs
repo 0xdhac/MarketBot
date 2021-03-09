@@ -6,16 +6,33 @@ using System.Threading.Tasks;
 
 namespace MarketBot.strategies.signals
 {
-	class AbsoluteStrengthHistogram : ISignalStrategy
+	class AbsoluteStrengthHistogram : Strategy
 	{
-		public void ApplyIndicators(SymbolData data)
+		public AbsoluteStrengthHistogram(SymbolData data, StrategyReadyCallback callback) : base(data, callback)
 		{
-			
+			callback(this);
 		}
 
-		public void Run(SymbolData data, SignalCallback callback)
+		public override void ApplyIndicators()
 		{
 
+		}
+
+		public override void Run(int period, SignalCallback callback)
+		{
+
+		}
+
+		public override SignalType StrategyConditions(int old_period, int new_period)
+		{
+			//throw new NotImplementedException();
+
+			return SignalType.None;
+		}
+
+		public override string GetName()
+		{
+			return "Absolute Strength Histogram";
 		}
 	}
 }

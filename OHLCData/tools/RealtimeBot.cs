@@ -10,7 +10,7 @@ namespace MarketBot.tools
 	class RealtimeBot
 	{
 		public static List<SymbolData> Symbols;
-		public static ISignalStrategy Strategy = new MACDCrossover();
+		public static IEntryStrategy Strategy;
 
 		public static void Start()
 		{
@@ -19,16 +19,17 @@ namespace MarketBot.tools
 
 		public static void AddSymbol(Exchanges exchange, OHLCVInterval interval, string symbol)
 		{
-			SymbolData sym = new SymbolData(exchange, interval, symbol, 10000, OnPeriodClose);
-			Strategy.ApplyIndicators(sym);
+			SymbolData sym = new SymbolData(exchange, interval, symbol, 10000, SymbolLoadedCallback);
+			//Strategy = new MACDCrossover(sym);
+			Strategy.ApplyIndicators();
 		}
 
-		public static void OnPeriodClose(SymbolData symbol)
+		public static void SymbolLoadedCallback(SymbolData symbol)
 		{
-			Strategy.Run(symbol, OnEntrySignal);
+			
 		}
 
-		public static void OnEntrySignal(SymbolData symbol, SignalType signal)
+		public static void OnEntrySignal(SymbolData symbol, int period, SignalType signal)
 		{
 			// enter trade and create exit positions
 		}

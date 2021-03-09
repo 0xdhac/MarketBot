@@ -5,13 +5,13 @@ using System.Text;
 using System.Threading.Tasks;
 using MarketBot.interfaces;
 
-namespace MarketBot
+namespace MarketBot.indicators
 {
-	class RSIIndicator : Indicator<Tuple<bool, decimal>>
+	class BollingerBands : Indicator<Tuple<bool, decimal, decimal>>
 	{
 		public override void Calculate(int period)
 		{
-			
+
 		}
 	}
 }

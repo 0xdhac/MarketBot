@@ -18,26 +18,33 @@ namespace MarketBot
 			Data = new CustomList<OHLCVPeriod>();
 		}
 
-		public void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback)
+		public OHLCVPeriod this[int index]
+		{
+			get => Data[index];
+		}
+
+		public void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, DateTime? start = null)
 		{
 			KlineInterval klv = ConvertExchangeInterval(interval);
 			Task.Run(() =>
 			{
 				using (var client = new BinanceClient())
 				{
-					DateTime dt = DateTime.UtcNow;
+					DateTime dt = (start.HasValue) ? start.Value : DateTime.UtcNow;
 					while (periods > 0)
 					{
 						int limit = (periods >= 1000) ? 1000 : periods;
 						periods -= 1000;
 
 						var data = client.Spot.Market.GetKlines(symbol, klv, null, dt, limit);
-						foreach (var candle in data.Data)
+						foreach (var candle in data.Data.Reverse())
 						{
-							Data.Add(ConvertOHLCVPeriod(candle));
+							Data.Insert(0, ConvertOHLCVPeriod(candle));
+							//candle.Vol
 						}
 
-						dt = Data[Data.Count - 1].OpenTime.Subtract(new TimeSpan(0, 0, 1));
+						dt = Data[0].OpenTime.Subtract(new TimeSpan(0, 0, 1));
+						//client.Spot.Market.
 					}
 				}
 

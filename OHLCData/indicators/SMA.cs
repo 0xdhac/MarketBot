@@ -7,12 +7,11 @@ using MarketBot.interfaces;
 
 namespace MarketBot.indicators
 {
-	class SMA : Indicator
+	class SMA : Indicator<Tuple<bool, decimal>>
 	{
-		public List<Tuple<bool, decimal>> IndicatorData = new List<Tuple<bool, decimal>>();
 		public int Length;
 
-		public SMA(int length)
+		public SMA(int length) : base()
 		{
 			Length = length;
 		}
@@ -36,6 +35,11 @@ namespace MarketBot.indicators
 				decimal sma = sum / Length;
 				IndicatorData.Add(new Tuple<bool, decimal>(true, sma));
 			}
+		}
+
+		public static decimal GetSMA(decimal sum, int length)
+		{
+			return sum / length;
 		}
 	}
 }
