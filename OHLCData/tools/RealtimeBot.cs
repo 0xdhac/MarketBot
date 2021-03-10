@@ -14,19 +14,26 @@ namespace MarketBot.tools
 
 		public static void Start()
 		{
-			//AddSymbol(Exchanges.Binance, "BTCUSDT")
+			/*
+			 * Exchanges.Screen(Exchanges.Binance);
+			 */
 		}
 
 		public static void AddSymbol(Exchanges exchange, OHLCVInterval interval, string symbol)
 		{
 			SymbolData sym = new SymbolData(exchange, interval, symbol, 10000, SymbolLoadedCallback);
 			//Strategy = new MACDCrossover(sym);
-			Strategy.ApplyIndicators();
+			//Strategy.ApplyIndicators();
 		}
 
 		public static void SymbolLoadedCallback(SymbolData symbol)
 		{
 			
+		}
+
+		public void OnClose(SymbolData data)
+		{
+
 		}
 
 		public static void OnEntrySignal(SymbolData symbol, int period, SignalType signal)

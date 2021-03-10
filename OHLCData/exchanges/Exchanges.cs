@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using MarketBot.exchanges.binance;
 
 namespace MarketBot
 {
@@ -63,6 +64,16 @@ namespace MarketBot
 
 	static class ExchangeTasks
 	{
+		public static void Screener(Exchanges ex, string symbol_regex, OHLCVInterval interval, PeriodCloseCallback callback)
+		{
+			switch (ex)
+			{
+				case Exchanges.Binance:
+					BinanceScreener.Screen(symbol_regex, BinanceOHLCVCollection.ConvertExchangeInterval(interval), callback);
+					break;
+			}
+		}
+
 		public static IExchangeOHLCVCollection CollectOHLCV(Exchanges ex, string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, DateTime? start = null)
 		{
 			switch (ex)

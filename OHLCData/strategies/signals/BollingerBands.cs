@@ -9,9 +9,9 @@ namespace MarketBot.strategies.signals
 	class BollingerBands : Strategy
 	{
 
-		public BollingerBands(SymbolData data, StrategyReadyCallback callback) : base(data, callback)
+		public BollingerBands(SymbolData data) : base(data)
 		{
-			callback(this);
+			
 		}
 
 		public override SignalType StrategyConditions(int old_period, int new_period)
@@ -19,6 +19,11 @@ namespace MarketBot.strategies.signals
 			//throw new NotImplementedException();
 
 			return SignalType.None;
+		}
+
+		public override void ApplyIndicators()
+		{
+			throw new NotImplementedException();
 		}
 
 		public override string GetName()

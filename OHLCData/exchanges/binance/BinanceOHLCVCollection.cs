@@ -52,7 +52,7 @@ namespace MarketBot
 			});
 		}
 
-		public KlineInterval ConvertExchangeInterval(OHLCVInterval interval)
+		public static KlineInterval ConvertExchangeInterval(OHLCVInterval interval)
 		{
 			switch (interval)
 			{
@@ -88,7 +88,6 @@ namespace MarketBot
 					return KlineInterval.TwoHour;
 				default:
 					throw new Exception("Invalid OHLCVInterval. Binance does not support this interval.");
-
 			}
 		}
 

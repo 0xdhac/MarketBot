@@ -7,6 +7,8 @@ using System.Threading.Tasks;
 
 namespace MarketBot.interfaces
 {
+	public delegate void IndicatorStepthroughCallback(CustomList<object> output, params object[] input);
+
 	public interface IIndicator
 	{
 		void AttachSource(IExchangeOHLCVCollection source);
@@ -14,12 +16,12 @@ namespace MarketBot.interfaces
 	}
 	public abstract class Indicator<T>: IIndicator
 	{
-		public List<T> IndicatorData { get; set; }
+		public CustomList<T> IndicatorData { get; set; }
 		public CustomList<OHLCVPeriod> DataSource;
 
 		public Indicator()
 		{
-			IndicatorData = new List<T>();
+			IndicatorData = new CustomList<T>();
 		}
 
 		public T this[int index]

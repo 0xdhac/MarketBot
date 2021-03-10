@@ -157,10 +157,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Blacklist.cs" />
     <Compile Include="CSVToOHLCData.cs" />
     <Compile Include="CustomList.cs" />
     <Compile Include="exchanges\binance\BinanceOHLCVCollection.cs" />
     <Compile Include="exchanges\binance\BinanceOrders.cs" />
+    <Compile Include="exchanges\binance\BinanceScreener.cs" />
     <Compile Include="exchanges\binance\BinanceWallet.cs" />
     <Compile Include="exchanges\Exchanges.cs" />
     <Compile Include="indicators\ATR.cs" />
@@ -179,6 +181,7 @@
     <Compile Include="interfaces\IIndicators.cs" />
     <Compile Include="interfaces\IRiskStrategy.cs" />
     <Compile Include="strategies\position\ATR.cs" />
+    <Compile Include="strategies\signals\CMFCrossover.cs" />
     <Compile Include="strategies\position\Swing.cs" />
     <Compile Include="strategies\signals\AbsoluteStrengthHistogram.cs" />
     <Compile Include="strategies\signals\BollingerBands.cs" />

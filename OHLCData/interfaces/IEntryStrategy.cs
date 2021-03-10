@@ -20,22 +20,19 @@ namespace MarketBot
 	public interface IEntryStrategy
 	{
 		void Run(int period, SignalCallback callback);
-		void ApplyIndicators();
 		string GetName();
 	}
 
 	public abstract class Strategy : IEntryStrategy 
 	{
 		public SymbolData DataSource;
-		public StrategyReadyCallback Callback;
+		
 
-		public Strategy(SymbolData data, StrategyReadyCallback callback)
+		public Strategy(SymbolData data)
 		{
 			DataSource = data;
-			Callback = callback;
-			ApplyIndicators();
 		}
-		public virtual void ApplyIndicators() { }
+		public abstract void ApplyIndicators();
 
 		public virtual void Run(int period, SignalCallback callback)
 		{

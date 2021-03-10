@@ -18,7 +18,7 @@ namespace MarketBot
 
 		private int Wins = 0;
 		private int Losses = 0;
-		private decimal RiskProfitRatio = (decimal)0.1;
+		private decimal RiskProfitRatio = (decimal)3;
 		private int Trades = 0;
 		private int TradePeriodsTotal = 0;
 		private decimal AccountTotal = 10000;
@@ -26,39 +26,41 @@ namespace MarketBot
 		private decimal BetAmount = 0;
 		private int Slices = 5;
 		private int SlicesUsed = 0;
-		private bool StrategyReady = false;
-		private bool SymbolLoaded = false;
 
 		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods, DateTime? start)
 		{
 			Console.WriteLine($"Starting replay/collecting symbol data for {symbol} on exchange {exchange}.");
-			Symbol = new SymbolData("./EURUSD_1m.csv", OHLCVInterval.OneMinute, CSVToOHLCData.HistDataConversion, OnSymbolLoaded, 200000);
-			//Symbol = new SymbolData(exchange, interval, symbol, periods, OnSymbolLoaded, start);
+			if (exchange == Exchanges.Localhost)
+			{
+				new SymbolData(symbol, CSVConversionMethod.Standard, OnSymbolLoaded);
+			}
+			else
+			{
+				new SymbolData(exchange, interval, symbol, periods, OnSymbolLoaded, start);
+			}
+			
 			//Current_Strategy = new Pair(Symbol, OnStrategyReady, "BTCUSDT", "MACDCrossover");
-			Exit_Strategy = new Swing(Symbol, 14);
-			new MACDCrossover(Symbol, OnStrategyReady);
+			
+			//testind = (indicators.CMF)Symbol.RequireIndicator("CMF", new KeyValuePair<string, object>("Length", 20));
+			
 			
 		}
 
 		void OnSymbolLoaded(SymbolData data)
 		{
-			if(StrategyReady == true)
-			{
-				Run();
-			}
+			Symbol = data;
+			Exit_Strategy = new Swing(data, 1);
+			Current_Strategy = new CMFCrossover(Symbol, 200, 20, 20);
+			//Current_Strategy = new CMFPassZero(Symbol, 200, 20, 20);
+			//new Pair(data, OnStrategyReady, "BTCUSDT", "CMFPassZero", 1440, 20, 50);
 
-			SymbolLoaded = true;
+			OnStrategyReady(Current_Strategy);
 		}
 
 		public void OnStrategyReady(Strategy strategy)
 		{
 			Current_Strategy = strategy;
-			if (SymbolLoaded == true)
-			{
-				Run();
-			}
-
-			StrategyReady = true;
+			Run();
 		}
 
 		public void Run()
@@ -68,7 +70,7 @@ namespace MarketBot
 			bool buy_in_pos = bool.Parse(Environment.GetEnvironmentVariable("BUY_WHEN_IN_POSITION"));
 			for (int period = 0; period < Symbol.Data.Data.Count; period++)
 			{
-				List<Position> position_list = Position.FindPositions(Symbol); //<-- this function might need to have multiple definitions. One that takes in SymbolData object, and one that takes in symbol info, like Exchange and Symbol name
+				List <Position> position_list = Position.FindPositions(Symbol); //<-- this function might need to have multiple definitions. One that takes in SymbolData object, and one that takes in symbol info, like Exchange and Symbol name
 
 				if (position_list.Count > 0)
 				{
@@ -115,6 +117,8 @@ namespace MarketBot
 				SlicesUsed = (SlicesUsed + 1) % Slices;
 			}
 
+			//Console.WriteLine($"{Symbol.Data[period].OpenTime}");
+
 			new Position(data, period, signal, entry_price, risk_price, profit_price);
 		}
 
@@ -135,10 +139,12 @@ namespace MarketBot
 					switch (TradeWon)
 					{
 						case true:
-							AccountTotal += ((pos.Profit * BetAmount) / pos.Entry) - BetAmount;
+							AccountTotal -= BetAmount;
+							AccountTotal += ((pos.Profit * BetAmount) / pos.Entry);
 							break;
 						case false:
-							AccountTotal += ((pos.Risk * BetAmount) / pos.Entry) - BetAmount;
+							AccountTotal -= BetAmount;
+							AccountTotal += ((pos.Risk * BetAmount) / pos.Entry);
 							break;
 					}
 					break;
@@ -146,10 +152,12 @@ namespace MarketBot
 					switch (TradeWon)
 					{
 						case true:
-							AccountTotal -= ((pos.Profit * BetAmount) / pos.Entry) - BetAmount;
+							AccountTotal += BetAmount;
+							AccountTotal -= ((pos.Profit * BetAmount) / pos.Entry);
 							break;
 						case false:
-							AccountTotal -= ((pos.Risk * BetAmount) / pos.Entry) - BetAmount;
+							AccountTotal += BetAmount;
+							AccountTotal -= ((pos.Risk * BetAmount) / pos.Entry);
 							break;
 					}
 					break;

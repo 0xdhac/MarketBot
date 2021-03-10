@@ -8,9 +8,9 @@ namespace MarketBot.strategies.signals
 {
 	class AbsoluteStrengthHistogram : Strategy
 	{
-		public AbsoluteStrengthHistogram(SymbolData data, StrategyReadyCallback callback) : base(data, callback)
+		public AbsoluteStrengthHistogram(SymbolData data) : base(data)
 		{
-			callback(this);
+			
 		}
 
 		public override void ApplyIndicators()

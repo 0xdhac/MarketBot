@@ -12,10 +12,9 @@ namespace MarketBot.strategies.signals
 		private EMA TrendLine;
 		private int Lookback;
 
-		public Break(SymbolData data, StrategyReadyCallback callback, int lookback) : base(data, callback)
+		public Break(SymbolData data, int lookback) : base(data)
 		{
 			Lookback = lookback;
-			callback(this);
 		}
 
 		public override void ApplyIndicators()

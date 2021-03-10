@@ -33,27 +33,25 @@ namespace MarketBot
 			Periods = periods;
 			StartTime = start.HasValue ? start.Value : DateTime.UtcNow;
 
-			ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, CollectionCallback, StartTime);
+			Data = ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, CollectionCallback, StartTime);
 		}
 
-		public SymbolData(string file_path, OHLCVInterval interval, CSVStepThroughCallback stepthrough_callback, SymbolDataLoadedCallback symbol_loaded_callback, int? periods)
+		public SymbolData(string file_path, CSVConversionMethod method, SymbolDataLoadedCallback symbol_loaded_callback)
 		{
 			Exchange = Exchanges.Localhost;
 			Symbol = file_path;
-			Interval = interval;
 			Data = new GenericOHLCVCollection();
 
-			CSVToOHLCData.Convert(file_path, Data.Data, stepthrough_callback);
+			CSVToOHLCData.Convert(file_path, Data.Data, method);
 			SymbolDataIsLoaded = true;
 
 			Periods = Data.Data.Count;
-			
+
 			symbol_loaded_callback(this);
 		}
 
 		public void CollectionCallback(IExchangeOHLCVCollection data)
 		{
-			Data = data;
 			SymbolDataIsLoaded = true;
 
 			foreach(var indicator in Indicators)
@@ -89,6 +87,7 @@ namespace MarketBot
 
 		public IIndicator RequireIndicator(string indicator_name, params KeyValuePair<string, object>[] field_list)
 		{
+			//Console.WriteLine()
 			foreach (var indicator in Indicators)
 			{
 				if (indicator.GetType().Name == indicator_name)
@@ -121,18 +120,9 @@ namespace MarketBot
 				fields[i] = field_list[i].Value;
 			}
 
-			try
-			{
-				IIndicator new_indicator_instance = (IIndicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), fields);
-				ApplyIndicator(new_indicator_instance);
-				return new_indicator_instance;
-			}
-			catch(Exception ex)
-			{
-				Console.WriteLine(ex.Message);
-			}
-
-			return null;
+			IIndicator new_indicator_instance = (IIndicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), fields);
+			ApplyIndicator(new_indicator_instance);
+			return new_indicator_instance;
 		}
 	}
 }

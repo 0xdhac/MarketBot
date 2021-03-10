@@ -37,10 +37,21 @@ namespace MarketBot
 				LogVerbosity = LogVerbosity.Info,
 				LogWriters = new List<TextWriter> { Console.Out }
 			});
-			
-			Replay r = new Replay(Exchanges.Binance, "BTCUSDT", OHLCVInterval.FortyFiveMinute, 30000, DateTime.UtcNow);
+
+			//new Replay(Exchanges.Binance, "ADAUSDT", OHLCVInterval.OneMinute, 14400, DateTime.UtcNow);
+			//new Replay(Exchanges.Localhost, "./ADAUSDT_OneMinute.csv", OHLCVInterval.OneMinute, 0, null);
+
+			ExchangeTasks.Screener(Exchanges.Binance, "USDT$", OHLCVInterval.OneMinute, Save);
+			//SymbolData data = new SymbolData(Exchanges.Binance, OHLCVInterval.OneMinute, "EGLDUSDT", 150000, Save);
 
 			Console.ReadLine();
+		}
+
+		private static void Save(SymbolData data)
+		{
+			Console.WriteLine("Saving");
+			OHLCDataToCSV.Convert(data.Data.Data, $"./{data.Symbol}_{data.Interval}.csv");
+			Console.WriteLine("Saved");
 		}
 	}
 }

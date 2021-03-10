@@ -1,12 +1,40 @@
 ﻿Features to implement:
-- VWAP indicator
+- Find historical forex/crypto data to download that has volume in it
+- *VWAP indicator
 - RSI indicator
-- CMF indicator
+- ADX indicator
 - Create a strategy type that can read other symboldatas
+- *Create a RiskStrategy where the trade exits after X amount of periods instead of waiting for a price target to hit
 - Support and Resistance break strategy
 - Candlestick pattern recognition strategy (Evening star, morning star, etc..)
 - Donchian Channels Strategy
 - Bollinger Bands Strategy
+- Try MACD crossover without taking trades on large candles
 - Monte Carlo Randomized Strategy Backtesting
 	- Create as many indicators as I can
 	- Create an indicator that can apply indicators to other indicators. For example, how the MACD signal line works; an EMA of the MACD which is the difference of two EMAs of the price data together.
+- VWAP + 600EMA + William's Alligator
+
+Matic: 1:3 ratio
+EMA: 200
+CFM: 30
+CFMEMA: 30
+Profitability: 1.3
+
+ADA: 1:2
+EMA: 200
+CFM: 20
+CFMEMA: 30
+
+Profitability / AvgNumberOfPeriods
+
+
+Commands:
+bot 
+	- entry <strategy name> (Example: bot entry CMFPassZero 200 20 20)
+	- exit <strategy name> (Example: bot exit Swing 2)
+	- start
+	^C = stop
+screener
+	- blacklist <add:remove> <exchange> <market> <symbol> (Example: "screener blacklist remove binance spot BTCUSDT")
+	- filter <regex pattern> (Default USDT$)
