@@ -21,17 +21,21 @@ namespace MarketBot.exchanges.binance
 				var data = info.Data;
 
 				Regex r = new Regex(symbol_regex);
-				foreach(var symbol in data.Symbols)
+				foreach (var symbol in data.Symbols)
 				{
 					//SymbolStatus.
 					//symbol.Status
+					
 					if (r.IsMatch(symbol.Name) && symbol.Permissions.Contains(AccountType.Spot) && symbol.Status == SymbolStatus.Trading)
 					{
+						/*
 						using (var socket_client = new BinanceSocketClient())
 						{
 							socket_client.Spot.SubscribeToKlineUpdatesAsync(symbol.Name, interval, OnKlineUpdate);
 						}
+						*/
 					}
+					
 				}
 			}
 		}

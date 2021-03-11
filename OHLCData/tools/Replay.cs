@@ -24,7 +24,7 @@ namespace MarketBot
 		private decimal AccountTotal = 10000;
 		private decimal AccountTotal_Start = 0;
 		private decimal BetAmount = 0;
-		private int Slices = 5;
+		private int Slices = 2;
 		private int SlicesUsed = 0;
 
 		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods, DateTime? start)
@@ -49,7 +49,7 @@ namespace MarketBot
 		void OnSymbolLoaded(SymbolData data)
 		{
 			Symbol = data;
-			Exit_Strategy = new Swing(data, 1);
+			Exit_Strategy = new Swing(data, 2);
 			Current_Strategy = new CMFCrossover(Symbol, 200, 20, 20);
 			//Current_Strategy = new CMFPassZero(Symbol, 200, 20, 20);
 			//new Pair(data, OnStrategyReady, "BTCUSDT", "CMFPassZero", 1440, 20, 50);
@@ -111,6 +111,9 @@ namespace MarketBot
 			decimal risk_price = Exit_Strategy.GetRiskPrice(period, signal);
 			decimal profit_price = ((entry_price - risk_price) * RiskProfitRatio) + entry_price;
 
+			if (entry_price - risk_price == 0)
+				return;
+
 			if (SlicesUsed == 0)
 			{
 				BetAmount = AccountTotal / (decimal)Slices;
@@ -141,10 +144,12 @@ namespace MarketBot
 						case true:
 							AccountTotal -= BetAmount;
 							AccountTotal += ((pos.Profit * BetAmount) / pos.Entry);
+							Console.WriteLine($"Win (Long): {((pos.Profit * BetAmount) / pos.Entry) - BetAmount}");
 							break;
 						case false:
 							AccountTotal -= BetAmount;
 							AccountTotal += ((pos.Risk * BetAmount) / pos.Entry);
+							Console.WriteLine($"Loss (Long): {((pos.Risk * BetAmount) / pos.Entry) - BetAmount}");
 							break;
 					}
 					break;
@@ -154,10 +159,12 @@ namespace MarketBot
 						case true:
 							AccountTotal += BetAmount;
 							AccountTotal -= ((pos.Profit * BetAmount) / pos.Entry);
+							Console.WriteLine($"Win (Short): {BetAmount - ((pos.Profit * BetAmount) / pos.Entry)}");
 							break;
 						case false:
 							AccountTotal += BetAmount;
 							AccountTotal -= ((pos.Risk * BetAmount) / pos.Entry);
+							Console.WriteLine($"Loss (Short): {BetAmount - ((pos.Risk * BetAmount) / pos.Entry)}");
 							break;
 					}
 					break;

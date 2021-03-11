@@ -14,6 +14,7 @@ namespace MarketBot.tools
 
 		public static void Start()
 		{
+			Console.WriteLine("test");
 			/*
 			 * Exchanges.Screen(Exchanges.Binance);
 			 */

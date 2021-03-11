@@ -33,8 +33,13 @@ Commands:
 bot 
 	- entry <strategy name> (Example: bot entry CMFPassZero 200 20 20)
 	- exit <strategy name> (Example: bot exit Swing 2)
-	- start
+	- profit <value> (Example: bot profit 2)
+	- start (Starts the bot)
 	^C = stop
+
 screener
 	- blacklist <add:remove> <exchange> <market> <symbol> (Example: "screener blacklist remove binance spot BTCUSDT")
 	- filter <regex pattern> (Default USDT$)
+
+backtest
+	- start <exchange> <symbol> <interval> <periods>
