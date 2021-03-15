@@ -9,11 +9,12 @@ namespace MarketBot.strategies.signals
 {
 	public class CMFCrossover : Strategy
 	{
-		private EMA TrendLine;
+		//public EMA TrendLine;
+		public VWAP VWAP;
 
 		//Testing
-		private CMF CmfShort;
-		CustomList<decimal> Signal = new CustomList<decimal>();
+		public CMF Cmf;
+		public CustomList<decimal> Signal = new CustomList<decimal>();
 
 		private int Trend_Length;
 		private int Short_Cmf_Length;
@@ -27,22 +28,24 @@ namespace MarketBot.strategies.signals
 
 			ApplyIndicators();
 			FullCalcSignal();
-			CmfShort.IndicatorData.OnAdd += CalculateSignal;
+			Cmf.IndicatorData.OnAdd += CalculateSignal;
 		}
 
 		public override void ApplyIndicators()
 		{
-			TrendLine = (EMA)DataSource.RequireIndicator("EMA",
-				new KeyValuePair<string, object>("Length", Trend_Length));
+			//TrendLine = (EMA)DataSource.RequireIndicator("EMA",
+			//	new KeyValuePair<string, object>("Length", Trend_Length));
+
+			VWAP = (VWAP)DataSource.RequireIndicator("VWAP");
 
 
-			CmfShort = (CMF)DataSource.RequireIndicator("CMF",
+			Cmf = (CMF)DataSource.RequireIndicator("CMF",
 				new KeyValuePair<string, object>("Length", Short_Cmf_Length));
 		}
 
 		private void CalculateSignal(object sender, EventArgs e)
 		{
-			int size = CmfShort.DataSource.Count;
+			int size = Cmf.DataSource.Count;
 
 			if ((size - 1) - (Signal_Length + Short_Cmf_Length) < 0)
 			{
@@ -52,75 +55,66 @@ namespace MarketBot.strategies.signals
 			{
 				if (size - 1 == (Signal_Length + Short_Cmf_Length))
 				{
-					List<decimal> range = CmfShort.IndicatorData.GetRange(size - 1 - Signal_Length, Signal_Length).ConvertAll(s => s.Item2);
-					Signal.Add(SMA.GetSMA(range.Sum(), Signal_Length));
+					decimal sum = 0;
+					for (int i = 0; i < Signal_Length; i++)
+					{
+						sum += Cmf[size - 1 - i].Item2;
+					}
+					Signal.Add(SMA.GetSMA(sum, Signal_Length));
 				}
 				else
 				{
-					Signal.Add(EMA.GetEMA(CmfShort[size - 1].Item2, Signal_Length, Signal[size - 2]));
+					Signal.Add(EMA.GetEMA(Cmf[size - 1].Item2, Signal_Length, Signal[size - 2]));
 				}
 			}
 		}
 
 		private void FullCalcSignal()
 		{
-			for (int i = 0; i < CmfShort.DataSource.Count; i++)
+			for (int i = 0; i < Cmf.DataSource.Count; i++)
 			{
-				if ((i - 1) - (Signal_Length + Short_Cmf_Length) < 0)
+				if (i - (Short_Cmf_Length + Signal_Length) < 0) //i - 1 - 20 < 0
 				{
 					Signal.Add(0);
 				}
 				else
 				{
-					if (i - 1 == (Signal_Length + Short_Cmf_Length))
+					if (i == Short_Cmf_Length + Signal_Length)
 					{
-						List<decimal> range = CmfShort.IndicatorData.GetRange(i - 1 - Signal_Length, Signal_Length).ConvertAll(s => s.Item2);
-						Signal.Add(SMA.GetSMA(range.Sum(), Signal_Length));
+						decimal sum = 0;
+						for(int j = 0; j < Signal_Length; j++)
+						{
+							sum += Cmf[i - j].Item2;
+						}
+						//CmfShort.IndicatorData.GetRange(i - 2 - Signal_Length, Signal_Length).ConvertAll(s => s.Item2);
+						Signal.Add(SMA.GetSMA(sum, Signal_Length));
 					}
 					else
 					{
-						Signal.Add(EMA.GetEMA(CmfShort[i - 1].Item2, Signal_Length, Signal[i - 2]));
+						Signal.Add(EMA.GetEMA(Cmf[i].Item2, Signal_Length, Signal[i - 1]));
 					}
 				}
 			}
 		}
 
-		public override SignalType StrategyConditions(int new_period, int old_period)
+		public override SignalType StrategyConditions(int old_period, int new_period)
 		{
 			if (new_period < 300)
 				return SignalType.None;
 
-			/*
-			if (DataSource.Data[new_period].Low > TrendLine[new_period].Item2 &&
-				CmfShort[new_period].Item2 > 0 &&
-				CmfShort[old_period].Item2 < 0)
-			{
-				return SignalType.Long;
-			}
-
-
-			if (DataSource.Data[new_period].High < TrendLine[new_period].Item2 &&
-				CmfShort[new_period].Item2 < 0 &&
-				CmfShort[old_period].Item2 > 0)
-			{
-				return SignalType.Short;
-			}
-			*/
-
-			//Console.WriteLine($"{new_period} {CmfEval[new_period]} {Signal[new_period]}");
-			if (DataSource.Data[new_period].Low > TrendLine[new_period].Item2 &&
-				CmfShort[new_period].Item2 > Signal[new_period] &&
-				CmfShort[old_period].Item2 < Signal[old_period] &&
-				CmfShort[new_period].Item2 < 0)
+			if (DataSource.Data[new_period].Low > VWAP[new_period] &&
+				Cmf[new_period].Item2 < Signal[new_period] &&
+				Cmf[old_period].Item2 > Signal[old_period] &&
+				Cmf[new_period].Item2 < 0) // AFTER A FEW TESTS, IT WAS UNANIMOUSLY BETTER FOR THE SIGNAL TO BE ON THE OPPOSITE SIDE OF THE ZERO LINE
 			{
 				return SignalType.Long;
 			}
 			
 
-			if (DataSource.Data[new_period].High < TrendLine[new_period].Item2 &&
-				CmfShort[new_period].Item2 < Signal[new_period] &&
-				CmfShort[old_period].Item2 > Signal[old_period] &&
-				CmfShort[new_period].Item2 > 0)
+			if (DataSource.Data[new_period].High < VWAP[new_period] &&
+				Cmf[new_period].Item2 > Signal[new_period] &&
+				Cmf[old_period].Item2 < Signal[old_period] &&
+				Cmf[new_period].Item2 > 0)
 			{
 				return SignalType.Short;
 			}

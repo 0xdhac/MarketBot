@@ -13,7 +13,7 @@ namespace MarketBot.exchanges.binance
 	public class BinanceScreener
 	{
 		// Only want symbols that aren't part of the blacklisted symbol list
-		public static void Screen(string symbol_regex, KlineInterval interval, PeriodCloseCallback callback)
+		public void Screen(string symbol_regex, KlineInterval interval, Action<SymbolData> callback)
 		{
 			using (var client = new BinanceClient())
 			{
@@ -23,19 +23,16 @@ namespace MarketBot.exchanges.binance
 				Regex r = new Regex(symbol_regex);
 				foreach (var symbol in data.Symbols)
 				{
-					//SymbolStatus.
-					//symbol.Status
-					
-					if (r.IsMatch(symbol.Name) && symbol.Permissions.Contains(AccountType.Spot) && symbol.Status == SymbolStatus.Trading)
+					if (r.IsMatch(symbol.Name) && 
+						symbol.Permissions.Contains(AccountType.Spot) && 
+						symbol.Status == SymbolStatus.Trading)
 					{
-						/*
 						using (var socket_client = new BinanceSocketClient())
 						{
+							//socket_client.Spot.SubscribeToUserDataUpdatesAsync(key, )
 							socket_client.Spot.SubscribeToKlineUpdatesAsync(symbol.Name, interval, OnKlineUpdate);
 						}
-						*/
 					}
-					
 				}
 			}
 		}
@@ -44,7 +41,7 @@ namespace MarketBot.exchanges.binance
 		{
 			if (data.Data.Final)
 			{
-				Console.WriteLine($"{data.Symbol}");
+				
 			}
 		}
 	}

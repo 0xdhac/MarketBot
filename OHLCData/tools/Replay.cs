@@ -14,6 +14,7 @@ namespace MarketBot
 	{
 		public Strategy Current_Strategy;
 		public RiskStrategy Exit_Strategy;
+		public RiskStrategy Alt_Strategy;
 		public SymbolData Symbol;
 
 		private int Wins = 0;
@@ -24,8 +25,10 @@ namespace MarketBot
 		private decimal AccountTotal = 10000;
 		private decimal AccountTotal_Start = 0;
 		private decimal BetAmount = 0;
-		private int Slices = 2;
+		private decimal BetPct = (decimal)0.0334;
+		private int ResizeEvery = 5;
 		private int SlicesUsed = 0;
+		private decimal TotalRisk = 0;
 
 		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods, DateTime? start)
 		{
@@ -36,23 +39,17 @@ namespace MarketBot
 			}
 			else
 			{
-				new SymbolData(exchange, interval, symbol, periods, OnSymbolLoaded, start);
+				new SymbolData(exchange, interval, symbol, periods, OnSymbolLoaded, false, start);
 			}
-			
-			//Current_Strategy = new Pair(Symbol, OnStrategyReady, "BTCUSDT", "MACDCrossover");
-			
-			//testind = (indicators.CMF)Symbol.RequireIndicator("CMF", new KeyValuePair<string, object>("Length", 20));
-			
-			
 		}
 
 		void OnSymbolLoaded(SymbolData data)
 		{
 			Symbol = data;
 			Exit_Strategy = new Swing(data, 2);
-			Current_Strategy = new CMFCrossover(Symbol, 200, 20, 20);
-			//Current_Strategy = new CMFPassZero(Symbol, 200, 20, 20);
-			//new Pair(data, OnStrategyReady, "BTCUSDT", "CMFPassZero", 1440, 20, 50);
+			Alt_Strategy = new ATR(data);
+			//Current_Strategy = new MACDCrossover(Symbol, 200, 12, 26, 9, 14);
+			Current_Strategy = new CMFCrossover(Symbol, 200, 21, 40);
 
 			OnStrategyReady(Current_Strategy);
 		}
@@ -67,7 +64,7 @@ namespace MarketBot
 		{
 			AccountTotal_Start = AccountTotal;
 			Console.WriteLine($"Running strategy on {Symbol.Symbol}");
-			bool buy_in_pos = bool.Parse(Environment.GetEnvironmentVariable("BUY_WHEN_IN_POSITION"));
+			bool buy_in_pos = bool.Parse(Program.GetConfigSetting("BUY_WHEN_IN_POSITION"));
 			for (int period = 0; period < Symbol.Data.Data.Count; period++)
 			{
 				List <Position> position_list = Position.FindPositions(Symbol); //<-- this function might need to have multiple definitions. One that takes in SymbolData object, and one that takes in symbol info, like Exchange and Symbol name
@@ -97,6 +94,7 @@ namespace MarketBot
 			Console.WriteLine($"Exit Strategy: {Exit_Strategy.GetName()}");
 			Console.WriteLine($"Risk/Reward Ratio: 1:{(float)RiskProfitRatio}");
 			Console.WriteLine($"Average Number of Periods: {(float)TradePeriodsTotal / (float)Trades}");
+			Console.WriteLine($"Average risk size: {TotalRisk / (Wins + Losses)}");
 			Console.WriteLine($"Wins: {Wins}");
 			Console.WriteLine($"Losses: {Losses}");
 			Console.WriteLine($"Profitability: {profitability}");
@@ -109,20 +107,32 @@ namespace MarketBot
 		{
 			decimal entry_price = data.Data[period].Close;
 			decimal risk_price = Exit_Strategy.GetRiskPrice(period, signal);
-			decimal profit_price = ((entry_price - risk_price) * RiskProfitRatio) + entry_price;
+			decimal profit = RiskProfitRatio;
+			
+
+			if (Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price) < 0.002)
+			{
+				//profit = 2;
+				risk_price = Alt_Strategy.GetRiskPrice(period, signal);
+			}
+
+			TotalRisk += (decimal)Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price);
+
+
+			decimal profit_price = ((entry_price - risk_price) * profit) + entry_price;
 
 			if (entry_price - risk_price == 0)
 				return;
 
 			if (SlicesUsed == 0)
 			{
-				BetAmount = AccountTotal / (decimal)Slices;
-				SlicesUsed = (SlicesUsed + 1) % Slices;
+				BetAmount = AccountTotal * BetPct;
+				SlicesUsed = (SlicesUsed + 1) % ResizeEvery;
 			}
 
 			//Console.WriteLine($"{Symbol.Data[period].OpenTime}");
 
-			new Position(data, period, signal, entry_price, risk_price, profit_price);
+			new Position(data, period, signal, entry_price, risk_price, profit_price, entry_price / BetAmount, false);
 		}
 
 		public void ExitCallback(SymbolData data, Position pos, int period, bool TradeWon)
@@ -135,21 +145,25 @@ namespace MarketBot
 			Trades++;
 			TradePeriodsTotal += (period - pos.Period);
 
-
+			//$10 / 2LTC 5 * 0.0075
+			decimal EntryFee = (BetAmount / pos.Entry) * (decimal)0.00075; // $10 / 2 = 5 
+			decimal AssetAmount = (BetAmount / pos.Entry) - EntryFee;
+			decimal ProfitAmount = (AssetAmount * pos.Profit) - ((AssetAmount * pos.Profit) * (decimal)0.00075);
+			decimal RiskAmount = (AssetAmount * pos.Risk) - ((AssetAmount * pos.Risk) * (decimal)0.00075);
 			switch (pos.Type)
 			{
 				case SignalType.Long:
 					switch (TradeWon)
 					{
 						case true:
-							AccountTotal -= BetAmount;
-							AccountTotal += ((pos.Profit * BetAmount) / pos.Entry);
-							Console.WriteLine($"Win (Long): {((pos.Profit * BetAmount) / pos.Entry) - BetAmount}");
+							AccountTotal -= BetAmount; // Account loses BetAmount
+							AccountTotal += ProfitAmount; // Gains ProfitAmount
+							//Console.WriteLine($"Win (Long): {((pos.Profit * BetAmount) / pos.Entry) - BetAmount}");
 							break;
 						case false:
 							AccountTotal -= BetAmount;
-							AccountTotal += ((pos.Risk * BetAmount) / pos.Entry);
-							Console.WriteLine($"Loss (Long): {((pos.Risk * BetAmount) / pos.Entry) - BetAmount}");
+							AccountTotal += RiskAmount;
+							//Console.WriteLine($"Loss (Long): {((pos.Risk * BetAmount) / pos.Entry) - BetAmount}");
 							break;
 					}
 					break;
@@ -158,13 +172,13 @@ namespace MarketBot
 					{
 						case true:
 							AccountTotal += BetAmount;
-							AccountTotal -= ((pos.Profit * BetAmount) / pos.Entry);
-							Console.WriteLine($"Win (Short): {BetAmount - ((pos.Profit * BetAmount) / pos.Entry)}");
+							AccountTotal -= ProfitAmount;
+							//Console.WriteLine($"Win (Short): {BetAmount - ((pos.Profit * BetAmount) / pos.Entry)}");
 							break;
 						case false:
 							AccountTotal += BetAmount;
-							AccountTotal -= ((pos.Risk * BetAmount) / pos.Entry);
-							Console.WriteLine($"Loss (Short): {BetAmount - ((pos.Risk * BetAmount) / pos.Entry)}");
+							AccountTotal -= RiskAmount;
+							//Console.WriteLine($"Loss (Short): {BetAmount - ((pos.Risk * BetAmount) / pos.Entry)}");
 							break;
 					}
 					break;

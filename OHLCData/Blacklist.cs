@@ -7,6 +7,7 @@ using CsvHelper;
 using System.IO;
 using System.Globalization;
 using CsvHelper.Configuration;
+using MarketBot.tools;
 
 namespace MarketBot
 {
@@ -60,6 +61,23 @@ namespace MarketBot
 				csv.WriteRecords(ls);
 			}
 
+			// Update RealTimeBot
+			foreach(var dict in RealtimeBot.TradingPairs)
+			{
+				if(dict.Key == exchange)
+				{
+					foreach(var pair in dict.Value)
+					{
+						if(pair.Key == symbol)
+						{
+							dict.Value.Remove(pair.Key);
+
+							dict.Value.Add(symbol, true);
+						}
+					}
+				}
+			}
+
 			return true;
 		}
 
@@ -99,6 +117,23 @@ namespace MarketBot
 			using (var csv = new CsvWriter(writer, config))
 			{
 				csv.WriteRecords(records);
+			}
+
+			// Update RealTimeBot
+			foreach (var dict in RealtimeBot.TradingPairs)
+			{
+				if (dict.Key == exchange)
+				{
+					foreach (var pair in dict.Value)
+					{
+						if (pair.Key == symbol)
+						{
+							dict.Value.Remove(pair.Key);
+
+							dict.Value.Add(symbol, false);
+						}
+					}
+				}
 			}
 
 			return found;

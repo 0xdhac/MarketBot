@@ -77,7 +77,7 @@ namespace MarketBot.strategies.signals
 		public void CalculateMacd(object sender, EventArgs e)
 		{
 			int size = MacdLong.DataSource.Count;
-			//Console.WriteLine($"{DataSource.Data.Data.Count} {size} {MacdShort.Length} {MacdLong.Length}");
+
 			if (size > 0)
 			{
 				MacdEval.Add(MacdShort[size - 1].Item2 - MacdLong[size - 1].Item2);
@@ -90,38 +90,32 @@ namespace MarketBot.strategies.signals
 
 		private void FullCalcMacdEval()
 		{
-			//Console.WriteLine(MacdLong.Dat);
+
 			for(int i = 0; i < MacdLong.DataSource.Count; i++)
 			{
 				MacdEval.Add(MacdShort[i].Item2 - MacdLong[i].Item2);
 			}
 		}
 
-		public override SignalType StrategyConditions(int new_period, int old_period)
+		public override SignalType StrategyConditions(int old_period, int new_period)
 		{
 			if (new_period < 300)
 				return SignalType.None;
 
-			//Console.WriteLine($"{new_period} {MacdEval.Count} {Signal.Count}");
 			
 			if (DataSource.Data[new_period].Low > TrendLine[new_period].Item2 &&
 				MacdEval[new_period] - Signal[new_period] < 0 &&
 				MacdEval[old_period] - Signal[old_period] > 0 &&
-				MacdEval[new_period] < 0 &&
-				CMF[new_period].Item2 > 0 &&
-				DataSource.Data[old_period].Close > DataSource.Data[old_period].Open)
+				MacdEval[new_period] < 0)
 			{
 				return SignalType.Long;
 			}
 
 			if (DataSource.Data[new_period].High < TrendLine[new_period].Item2 &&
-				MacdEval[new_period] - Signal[new_period] > 0 &&
-				MacdEval[old_period] - Signal[old_period] < 0 &&
-				MacdEval[new_period] > 0 &&
-				CMF[new_period].Item2 < 0 &&
-				DataSource.Data[old_period].Close < DataSource.Data[old_period].Open)
+				MacdEval[new_period] - Signal[new_period] < 0 &&
+				MacdEval[old_period] - Signal[old_period] > 0 &&
+				MacdEval[new_period] > 0)
 			{
-				//Console.WriteLine($"High: {DataSource.Data[new_period].High}, Trend: {TrendLine[new_period].Item2}, MACD: {MACD[new_period].Item2}, Signal: {MACD[new_period].Item3}");
 				return SignalType.Short;
 			}
 			return SignalType.None;

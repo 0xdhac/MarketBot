@@ -19,7 +19,7 @@ namespace MarketBot
 
 		public static bool Execute(string command)
 		{
-			Regex r = new Regex(@"\w+");
+			Regex r = new Regex("(\"[^\"]+\"|[^\\s\"]+)");
 			MatchCollection collection = r.Matches(command);
 
 			if(collection.Count > 0)
@@ -27,6 +27,8 @@ namespace MarketBot
 				string[] args = new string[collection.Count];
 				for(int i = 0; i < args.Length; i++)
 				{
+					string s = collection[i].Value;
+					s = s.Trim('"');
 					args[i] = collection[i].Value;
 				}
 

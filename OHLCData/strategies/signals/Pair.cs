@@ -18,7 +18,7 @@ namespace MarketBot.strategies.signals
 
 		public Pair(SymbolData main_symbol, StrategyReadyCallback callback, string paired, string strategy_classname, params object[] param_list) : base(main_symbol) 
 		{
-			PairedSymbol = new SymbolData(main_symbol.Exchange, main_symbol.Interval, paired, main_symbol.Periods, DataLoaded, main_symbol.StartTime);
+			PairedSymbol = new SymbolData(main_symbol.Exchange, main_symbol.Interval, paired, main_symbol.Periods, DataLoaded, false, main_symbol.StartTime);
 			StrategyName = strategy_classname;
 			ParamList = new object[param_list.Length + 1];
 			ParamList[0] = PairedSymbol;

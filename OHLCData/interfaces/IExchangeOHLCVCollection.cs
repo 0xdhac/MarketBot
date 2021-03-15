@@ -37,26 +37,31 @@ namespace MarketBot
 		public decimal Volume { get; set; }
 		public DateTime OpenTime { get; set; }
 		public DateTime CloseTime { get; set; }
+		//public decimal AssetVolume { get; set; }
 	};
 
 	public delegate void OHLCVCollectionCompletedCallback(IExchangeOHLCVCollection callback);
 
 	public interface IExchangeOHLCVCollection
 	{
+		bool CollectionFailed { get; set; }
+		string Name { get; set; }
 		CustomList<OHLCVPeriod> Data { get; set; }
-		void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, DateTime? start = null);
+		void CollectOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null);
 		OHLCVPeriod this[int index] { get; }
 	}
 
 	public class GenericOHLCVCollection : IExchangeOHLCVCollection
 	{
+		public string Name { get; set; }
 		public CustomList<OHLCVPeriod> Data { get; set; }
 		public OHLCVPeriod this[int index] { get => Data[index]; }
+		public bool CollectionFailed { get; set; }
 
 		public GenericOHLCVCollection()
 		{
 			Data = new CustomList<OHLCVPeriod>();
 		}
-		public void CollectOHLCV(string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, DateTime? start = null) { }
+		public void CollectOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null) { }
 	}
 }

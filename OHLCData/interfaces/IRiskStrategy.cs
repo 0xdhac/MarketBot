@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace MarketBot.interfaces
 {
-	public delegate void RiskCallback(SymbolData data);
 	public interface IRiskStrategy
 	{
 		//decimal Run(Position pos, )

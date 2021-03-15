@@ -8,7 +8,7 @@ using MarketBot.interfaces;
 
 namespace MarketBot.indicators
 {
-	class EMA : Indicator<Tuple<bool, decimal>>
+	public class EMA : Indicator<Tuple<bool, decimal>>
 	{
 		public int Length;
 
@@ -39,7 +39,6 @@ namespace MarketBot.indicators
 				}
 				else
 				{
-					//Console.WriteLine("test");
 					ema_yesterday = IndicatorData[period - 1].Item2;
 				}
 
@@ -83,7 +82,7 @@ namespace MarketBot.indicators
 		public static decimal GetEMA(decimal current_value, int length, decimal previous_ema)
 		{
 			decimal weight = (decimal)2.0 / (length + (decimal)1.0);
-			return current_value * weight + previous_ema * (1 - weight);
+			return (current_value * weight) + (previous_ema * (1 - weight));
 		}
 	}
 }

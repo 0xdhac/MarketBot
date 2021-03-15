@@ -10,33 +10,61 @@ using Binance.Net.Objects.Spot;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Logging;
 using System.IO;
-using dotenv.net;
 using MarketBot.indicators;
 using MarketBot.tools;
+using MarketBot.exchanges.binance;
 using System.Drawing;
+using System.Configuration;
+using MarketBot.interfaces;
+using NLog;
 
 namespace MarketBot
 {
 	class Program
 	{
+		static void SetupLogger()
+		{
+			var config = new NLog.Config.LoggingConfiguration();
+
+			// Targets where to log to: File and Console
+			var logfile = new NLog.Targets.FileTarget("logfile") { FileName = "./logs/log.txt" };
+
+			// Rules for mapping loggers to targets         
+			config.AddRuleForAllLevels(logfile);
+
+			// Apply config           
+			LogManager.Configuration = config;
+		}
+
+		public static void Log(string log)
+		{
+			LogManager.GetCurrentClassLogger().Info(log);
+		}
+		
+		public static void LogError(string log)
+		{
+			LogManager.GetCurrentClassLogger().Error(log);
+		}
+
 		static void Main(string[] args)
 		{
-			DotEnv.Config(true, "./cfg/api.env");
+			// Initialize logger settings
+			SetupLogger();
 
-			string api_key = Environment.GetEnvironmentVariable("BINANCE_API_KEY");
-			string secret_key = Environment.GetEnvironmentVariable("BINANCE_SECRET_KEY");
+			string api_key = ConfigurationManager.AppSettings["BINANCE_API_KEY"];
+			string secret_key = ConfigurationManager.AppSettings["BINANCE_SECRET_KEY"];
 
 			BinanceClient.SetDefaultOptions(new BinanceClientOptions()
 			{
 				ApiCredentials = new ApiCredentials(api_key, secret_key),
-				LogVerbosity = LogVerbosity.Info,
+				LogVerbosity = LogVerbosity.Error,
 				LogWriters = new List<TextWriter> { Console.Out }
 			});
 
 			BinanceSocketClient.SetDefaultOptions(new BinanceSocketClientOptions()
 			{
 				ApiCredentials = new ApiCredentials(api_key, secret_key),
-				LogVerbosity = LogVerbosity.Info,
+				LogVerbosity = LogVerbosity.Error,
 				LogWriters = new List<TextWriter> { Console.Out }
 			});
 
@@ -45,30 +73,28 @@ namespace MarketBot
 			Commands.Register("bot", BotCommand);
 			Commands.Register("help", HelpCommand);
 
-			//new Replay(Exchanges.Binance, "EGLDUSDT", OHLCVInterval.OneMinute, 100000, DateTime.UtcNow);
-			//new Replay(Exchanges.Localhost, "./ADAUSDT_OneMinute.csv", OHLCVInterval.OneMinute, 0, null);
+			Console.ForegroundColor = ConsoleColor.Cyan;
+			Console.WriteLine("MarketBot\n");
 
-			//ExchangeTasks.Screener(Exchanges.Binance, "USDT$", OHLCVInterval.OneMinute, Save);
-			//SymbolData data = new SymbolData(Exchanges.Binance, OHLCVInterval.OneMinute, "EGLDUSDT", 150000, Save);
+			Console.ForegroundColor = ConsoleColor.Gray;
+			Console.WriteLine("Commands:");
+			Commands.Execute("help");
+			Console.WriteLine("");
 
-
+			//new Replay(Exchanges.Binance, "DOGEUSDT", OHLCVInterval.OneMinute, 1000, DateTime.UtcNow);
+			//new Replay(Exchanges.Localhost, "./DOTUSDT_OneMinute.csv", OHLCVInterval.FiveMinute, 0, null);
 
 			while (true)
 			{
+				//Console.Write("> ");
+				//Console.SetCursorPosition(2, Console.CursorTop);
 				string command = Console.ReadLine();
 
 				if (!Commands.Execute(command))
 				{
-					Console.WriteLine($"Command not found: {command}");
+					Console.WriteLine($"- Command not found: {command}");
 				}
 			}
-		}
-
-		private static void Save(SymbolData data)
-		{
-			Console.WriteLine("Saving");
-			OHLCDataToCSV.Convert(data.Data.Data, $"./{data.Symbol}_{data.Interval}.csv");
-			Console.WriteLine("Saved");
 		}
 
 		private static void HelpCommand(string[] args)
@@ -83,11 +109,10 @@ namespace MarketBot
 		{
 			if(args.Length == 1)
 			{
-				Console.WriteLine(@"
-Commands:
-- entry <strategy name> (Example: bot entry CMFCrossover 200 20 20)
+				Console.WriteLine(@"Commands:
+- entry <strategy name> (Example: bot entry ""CMFCrossover 200 20 20"")
 - exit <strategy name> (Example: bot exit Swing 2)
-- profit<value> (Example: bot profit 2)
+- profit <value> (Example: bot profit 2)
 - start (Starts the bot)");
 			}
 			else
@@ -97,6 +122,11 @@ Commands:
 					Console.WriteLine("Starting bot. Ctrl+C to STOP.");
 					RealtimeBot.Start();
 				}
+				if(args[1].Equals("finish", StringComparison.OrdinalIgnoreCase))
+				{
+					RealtimeBot.Finish = true;
+					Console.WriteLine("Now ignoring all signals.");
+				}
 			}
 		}
 
@@ -104,7 +134,8 @@ Commands:
 		{
 			if (args.Length == 1)
 			{
-
+				Console.WriteLine(@"- blacklist <add:remove> <exchange> <symbol> (Example: screener blacklist remove binance spot BTCUSDT)
+- filter <exchange> <regex pattern> (Default USDT$)");
 			}
 			else
 			{
@@ -117,7 +148,7 @@ Commands:
 					else
 					{
 						Exchanges ex;
-						bool success = Enum.TryParse(args[3], out ex);
+						bool success = Enum.TryParse(args[3], true, out ex);
 
 						if (success)
 						{
@@ -147,6 +178,22 @@ Commands:
 						}
 					}
 				}
+				else if(args[1].Equals("filter", StringComparison.OrdinalIgnoreCase))
+				{					
+					if(args.Length < 4)
+					{
+						Console.WriteLine("Usage: screener filter <exchange> <expression>\nExample: screener filter binance \"USDT$\"");
+					}
+					else
+					{
+						string config_setting = args[2].ToUpper() + "_SYMBOL_REGEX";
+						if(UpdateConfigSetting(config_setting, args[3]))
+						{
+							Console.WriteLine($"Setting {config_setting} updated to value {args[3]}.");
+						}
+						//Program.UpdateConfigSetting()
+					}
+				}
 			}
 		}
 
@@ -160,6 +207,33 @@ Commands:
 			{
 
 			}
+		}
+
+		public static bool UpdateConfigSetting(string setting, string value)
+		{
+			Configuration configManager = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
+			KeyValueConfigurationCollection confCollection = configManager.AppSettings.Settings;
+			if(confCollection.AllKeys.Contains(setting))
+			{
+				confCollection[setting].Value = value;
+				configManager.Save();
+				return true;
+			}
+
+			return false;
+		}
+
+		public static string GetConfigSetting(string setting)
+		{
+			return ConfigurationManager.AppSettings[setting];
+		}
+
+		public static void Print(string input)
+		{
+			Console.Write($"{input}\n");
+			
+			Console.Write("> ");
+			Console.SetCursorPosition(2, Console.CursorTop);
 		}
 	}
 }

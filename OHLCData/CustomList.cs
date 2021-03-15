@@ -9,6 +9,7 @@ namespace MarketBot
 	public class CustomList<T> : List<T>
 	{
 		public event EventHandler OnAdd;
+		public event EventHandler OnAdd_Post;
 
 		public new void Add(T item)
 		{
@@ -16,6 +17,11 @@ namespace MarketBot
 			if (null != OnAdd)
 			{
 				OnAdd(this, null);
+			}
+
+			if(null != OnAdd_Post)
+			{
+				OnAdd_Post(this, null);
 			}
 		}
 	}

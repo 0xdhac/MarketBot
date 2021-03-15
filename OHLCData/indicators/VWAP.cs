@@ -7,27 +7,50 @@ using MarketBot.interfaces;
 
 namespace MarketBot.indicators
 {
-	public class VWAP : Indicator<Tuple<bool, decimal>>
+	public class VWAP : Indicator<Tuple<decimal, decimal, decimal>>
 	{
-		int Length;
-		public VWAP(int length) : base()
+		public VWAP() : base() { }
+
+		public decimal this[int index]
 		{
-			Length = length;
+			get => IndicatorData[index].Item3;
 		}
 
 		public override void Calculate(int period)
 		{
-			if (period - Length < 0)
+			decimal cumulative_price = 0;
+			decimal cumulative_volume = 0;
+
+			decimal current_typical_price = ((DataSource[period].High + DataSource[period].Low + DataSource[period].Close) / (decimal)3.0) * DataSource[period].Volume;
+			decimal current_volume = DataSource[period].Volume;
+
+			if (period != 0)
 			{
-				IndicatorData.Add(new Tuple<bool, decimal>(false, 0));
-				return;
+				if(DataSource[period - 1].OpenTime.Day != DataSource[period].OpenTime.Day)
+				{
+					cumulative_price = current_typical_price;
+					cumulative_volume = current_volume;
+				}
+				else
+				{
+					cumulative_price = IndicatorData[period - 1].Item1 + current_typical_price;
+					cumulative_volume = IndicatorData[period - 1].Item2 + current_volume;
+				}
 			}
 
-			
+			if (cumulative_volume != 0)
+			{
+				IndicatorData.Add(new Tuple<decimal, decimal, decimal>(cumulative_price, cumulative_volume, cumulative_price / cumulative_volume));
+			}
+			else
+			{
+				IndicatorData.Add(new Tuple<decimal, decimal, decimal>(cumulative_price, cumulative_volume, 0));
+			}
 		}
 
-		public decimal GetVWAP(int period)
+		public decimal GetVWAP(decimal typical_price_average, decimal volume)
 		{
+			// Typical price is the average of high, low, and close for length of period
 			return 0;
 		}
 	}
