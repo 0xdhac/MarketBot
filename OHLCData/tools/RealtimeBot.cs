@@ -21,16 +21,20 @@ namespace MarketBot.tools
 		public static Dictionary<Exchanges, int> Wins = new Dictionary<Exchanges, int>();
 		public static Dictionary<Exchanges, int> Losses = new Dictionary<Exchanges, int>();
 		public static bool Finish = false;
-
+		public static int BuyCount = 0;
 		private static decimal BetAmount = 0;
 		private static decimal BetPct = (decimal)0.005;
 
 		public static int ResetBetAmountEvery = 100;
 
 		private static int Loaded = 0;
-		public static int buys = 0;
+
 		public static void Start()
 		{
+			if(!decimal.TryParse(Program.GetConfigSetting("BET_PERCENTAGE"), out BetPct))
+			{
+				throw new Exception("Config setting not correct: 'BET_PERCENTAGE'");
+			}
 			Trades.Add(Exchanges.Binance, 0);
 			Wins.Add(Exchanges.Binance, 0);
 			Losses.Add(Exchanges.Binance, 0);
@@ -138,7 +142,7 @@ namespace MarketBot.tools
 
 		public static void OnClose(object data, EventArgs e)
 		{
-			if(Finish == true)
+			if (Finish == true)
 			{
 				return;
 			}
@@ -169,9 +173,24 @@ namespace MarketBot.tools
 				Positions.Add(symbol.Exchange, new List<Position>());
 			}
 
-			// Don't enter a position when already in one
-			if(Positions[symbol.Exchange].Exists((p) => p.Symbol == symbol.Symbol))
+			foreach (var position in Position.Positions)
 			{
+				if (position.Symbol == symbol.Symbol)
+				{
+					return;
+				}
+			}
+
+			if(BetAmount > Wallets[symbol.Exchange].Available)
+			{
+				return;
+			}
+
+			int max_orders = int.Parse(Program.GetConfigSetting("NUM_ORDERS_BEFORE_STOPPING_BOT"));
+			if (BuyCount >= max_orders && max_orders != 0)
+			{
+				Finish = true;
+				Program.Print("Stopping bot. Max buy orders reached.");
 				return;
 			}
 
@@ -185,17 +204,11 @@ namespace MarketBot.tools
 			}
 			decimal profit_price = ((entry_price - risk_price) * profit) + entry_price;
 
+			// Hardcoded prevention of impossible positions
 			if (entry_price - risk_price == 0)
 				return;
 
-			foreach(var position in Position.Positions)
-			{
-				if(position.Symbol == symbol.Symbol)
-				{
-					return;
-				}
-			}
-
+			// Create position
 			new Position(symbol, period, signal, entry_price, risk_price, profit_price, BetAmount / entry_price, true);
 		}
 	}

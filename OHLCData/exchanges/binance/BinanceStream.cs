@@ -2,10 +2,12 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Binance.Net;
 using Binance.Net.Enums;
 using Binance.Net.Objects.Spot.UserStream;
+using Binance.Net.Objects.Spot;
 using MarketBot.tools;
 
 namespace MarketBot.exchanges.binance
@@ -17,89 +19,150 @@ namespace MarketBot.exchanges.binance
 			using (var client = new BinanceClient())
 			{
 				var key = client.Spot.UserStream.StartUserStream().Data;
-				
-				using (var socket = new BinanceSocketClient())
-				{
-					socket.Spot.SubscribeToUserDataUpdatesAsync(key, OrderUpdate, OcoOrderUpdate, PositionUpdate, BalanceUpdate); 
-				}
 
-				/*
-				var margin_key = client.Margin.UserStream.StartUserStream().Data;
-
-				using (var socket = new BinanceSocketClient())
+				using (var socket = new BinanceSocketClient(new BinanceSocketClientOptions() { AutoReconnect = true, ReconnectInterval = TimeSpan.FromSeconds(5) }))
 				{
-					
+					var result = socket.Spot.SubscribeToUserDataUpdatesAsync(key, OrderUpdate, OcoOrderUpdate, PositionUpdate, BalanceUpdate);
+
+					//socket.
 				}
-				*/
 			}
 		}
 
 		private static void OrderUpdate(BinanceStreamOrderUpdate update)
 		{
-			// Expired Sell sell_side  == pos.Risk -> MARKET SELL
-			// PartialFill buy_side == update pos.Commission
-			// Fill buy_side        == update pos.Commission, quantity, Place OCO
-			// Fill sell_side, pos.Profit == update.Price -> WINS++
-			// Fill sell_side, pos.Risk >= update.Price -> LOSSES--
-			//Console.WriteLine($"Order update: {update.Symbol} {update.Status} {update.Side} {update.Price} {update.Quantity}");
 			List<Position> ToRemove = new List<Position>();
-			
-			foreach (var position in Position.Positions)
+
+			// Not in positions list
+			foreach (var pos in Position.Positions)
 			{
-				if(position.Symbol == update.Symbol) // If it matches the symbol
+				if(pos.Symbol == update.Symbol) // If it matches the symbol
 				{
-					if(position.Real == true) // If it's a real money position
+					if (pos.Real == true) // If it's a real money position
 					{
-						OrderSide signal_direction = (position.Type == SignalType.Long) ? OrderSide.Buy : OrderSide.Sell;
+						OrderSide signal_direction = (pos.Type == SignalType.Long) ? OrderSide.Buy : OrderSide.Sell;
 
 						if(update.Side == signal_direction) // If the order type matches the signal direction
 						{
 							if(update.Status == OrderStatus.PartiallyFilled) // If it only fills partially
 							{
-								position.Commission += update.Commission; // Update the fee/commission
+								pos.Filled += update.LastQuantityFilled;
 							}
 							if (update.Status == OrderStatus.Filled)
 							{
-								Console.WriteLine($"[{position.Symbol}] Entry order filled.");
-								position.Status = PositionStatus.Filled;
-								position.Commission += update.Commission;
-								position.Quantity -= position.Commission;
-								position.Quantity = ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, update.Symbol, position.Quantity);
+								pos.Status			= PositionStatus.Filled;
+								if (new Regex($"^{update.Symbol}").IsMatch(update.CommissionAsset))
+								{
+									pos.Commission += update.Commission; // Update the fee/commission
+								}
+								pos.Filled			+= update.LastQuantityFilled;
+								pos.Quantity		= ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, update.Symbol, pos.Filled - pos.Commission);
 
-								BinanceOrders.PlaceOcoOrder(position, 0);
+								BinanceOrders.PlaceOcoOrder(pos, 0, pos.Quantity);
 							}
 							else if (update.Status == OrderStatus.Rejected || update.Status == OrderStatus.Expired)
 							{
-								Console.WriteLine($"[{position.Symbol}] Order {update.Status}");
-								ToRemove.Add(position); // Remove expired/rejected buys
+								RealtimeBot.Wallets[Exchanges.Binance].Available += (pos.Quantity - update.QuantityFilled) * pos.Entry;
+								Console.WriteLine($"[{pos.Symbol}] Order {update.Status}");
+								ToRemove.Add(pos); // Remove expired/rejected buys
+							}
+							else if(update.Status == OrderStatus.New)
+							{
+								// Update wallet balance
+								RealtimeBot.Wallets[Exchanges.Binance].Available -= (update.Quantity * update.Price);
+
+								pos.OrderId = update.OrderId;
+								Task.Run(() => 
+								{
+									string setting = Program.GetConfigSetting("CANCEL_BUY_ORDER_AFTER_X_SECONDS");
+									bool success = int.TryParse(setting, out int seconds);
+
+									if(!success)
+									{
+										Console.WriteLine($"Error: Config setting 'CANCEL_BUY_ORDER_AFTER_X_SECONDS' not found. Defaulted to 10 seconds.");
+										Program.LogError($"Config setting 'CANCEL_BUY_ORDER_AFTER_X_SECONDS' not found.");
+										seconds = 10;
+									}
+
+									System.Threading.Thread.Sleep(seconds * 1000);
+
+									if(pos != null)
+									{
+										if(pos.Status == PositionStatus.Ordered)
+										{
+											BinanceOrders.CancelAnyOrders(pos.Symbol, OrderType.Limit, signal_direction);
+										}
+									}
+								});
+							}
+							else if(update.Status == OrderStatus.Canceled)
+							{
+								// Update wallet balance, increase based on quantity that was unfilled during the order
+								RealtimeBot.Wallets[Exchanges.Binance].Available += (pos.Quantity - update.QuantityFilled) * pos.Entry;
+
+								if(pos.Filled > 0)
+								{
+									pos.Status = PositionStatus.Filled;
+									pos.Quantity = ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, update.Symbol, pos.Filled - pos.Commission);
+
+									BinanceOrders.PlaceOcoOrder(pos, 0, pos.Quantity);
+								}
 							}
 						}
-						else // if a coin tries to sell when the entry was to buy
+						else // if an asset tries to sell when the entry was to buy
 						{
-							if (update.Status == OrderStatus.Expired && update.Price <= position.Risk)
+							if (update.Status == OrderStatus.Expired && update.Price > pos.Entry)
 							{
-								Console.WriteLine($"[{position.Symbol}] Exit order expired. Using Market instead of limit.");
-								BinanceOrders.PlaceOrder(position, signal_direction + 1 % 2, OrderType.Market, 0);
+								//Program.Print($"market selling after x seconds {update.Symbol} {update.Status}");
+								Task.Run(() =>
+								{
+									string setting = Program.GetConfigSetting("CANCEL_AND_MARKET_SELL_ORDER_AFTER_X_SECONDS");
+									bool success = int.TryParse(setting, out int seconds);
+
+									if (!success)
+									{
+										Console.WriteLine($"Error: Config setting 'CANCEL_AND_MARKET_SELL_ORDER_AFTER_X_SECONDS' not found. Defaulted to 5 seconds.");
+										Program.LogError($"Config setting 'CANCEL_AND_MARKET_SELL_ORDER_AFTER_X_SECONDS' not found.");
+										seconds = 5;
+									}
+
+									System.Threading.Thread.Sleep(seconds * 1000);
+
+									if (pos != null)
+									{
+										if (pos.Status == PositionStatus.Oco)
+										{
+											BinanceOrders.CancelAnyOrders(pos.Symbol, OrderType.StopLossLimit, signal_direction + 1 % 2);
+											BinanceOrders.PlaceOrder(pos, signal_direction + 1 % 2, OrderType.Market, 0, pos.Filled, -2010); // Ignore rejected order in the case that the stop loss limit was a success
+										}
+									}
+								});
+							}
+							else if(update.Status == OrderStatus.PartiallyFilled)
+							{
+								pos.Filled -= update.LastQuantityFilled;
 							}
 							else if(update.Status == OrderStatus.Filled)
 							{
-								if(++RealtimeBot.Trades[position.Exchange] % RealtimeBot.ResetBetAmountEvery == 0)
+								pos.Filled -= update.LastQuantityFilled;
+								if(++RealtimeBot.Trades[pos.Exchange] % RealtimeBot.ResetBetAmountEvery == 0)
 								{
-									ExchangeTasks.GetWallet(position.Exchange, RealtimeBot.OnWalletLoaded); // Reset bet size
+									ExchangeTasks.GetWallet(pos.Exchange, RealtimeBot.OnWalletLoaded); // Reset bet size
 								}
 
-								if((update.Price > position.Entry && signal_direction == OrderSide.Buy) || (update.Price < position.Entry && signal_direction == OrderSide.Sell))
+								if((update.Price > pos.Entry && signal_direction == OrderSide.Buy) || (update.Price < pos.Entry && signal_direction == OrderSide.Sell))
 								{
-									RealtimeBot.Wins[position.Exchange]++;
+									RealtimeBot.Wins[pos.Exchange]++;
 								}
 								else
 								{
-									RealtimeBot.Losses[position.Exchange]++;
+									RealtimeBot.Losses[pos.Exchange]++;
 								}
 
-								decimal losses = RealtimeBot.Losses[position.Exchange] == 0 ? 1 : RealtimeBot.Losses[position.Exchange];
-								Console.WriteLine($"[{position.Symbol}] Winrate: {string.Format("{0:0.00}", (decimal)RealtimeBot.Wins[position.Exchange] / losses)}");
-								ToRemove.Add(position); // Remove filled sells
+								int losses = RealtimeBot.Losses[pos.Exchange] == 0 ? 1 : RealtimeBot.Losses[pos.Exchange];
+								int wins = RealtimeBot.Wins[pos.Exchange];
+								Console.WriteLine($"[{pos.Symbol}] Winrate: {string.Format("{0:0.00}", (decimal)wins / (decimal)(wins + losses))}");
+								ToRemove.Add(pos); // Remove filled sells
 							}
 						}
 					}
@@ -114,53 +177,17 @@ namespace MarketBot.exchanges.binance
 
 		private static void OcoOrderUpdate(BinanceStreamOrderList update)
 		{
-			/*
-			List<Position> ToRemove = new List<Position>();
-			foreach (var pos in Position.Positions)
-			{
-				if(update.Symbol == pos.Symbol && update.ListOrderStatus == ListOrderStatus.Done)
-				{
-					ToRemove.Add(pos);
-				}
-			}
-
-			foreach (var pos in ToRemove)
-			{
-				Position.Positions.Remove(pos);
-			}
-			*/
-
-			//Console.WriteLine($"Oco Order Update: {update.Symbol} {update.ListOrderStatus} {update.ListStatusType}");
+			
 		}
 
 		public static void PositionUpdate(BinanceStreamPositionsUpdate update)
 		{
-			//Console.WriteLine($"Position Update: {update.Event}");
-			/*
-			List<Position> ToRemove = new List<Position>();
-			foreach (var pos in Position.Positions)
-			{
-				if (update.Symbol == pos.Symbol)
-				{
-					if (update.ListOrderStatus == ListOrderStatus.Done)
-					{
-						Console.WriteLine($"Removing {update.Symbol} from positions");
-						ToRemove.Add(pos);
-					}
-				}
-			}
 
-			foreach (var pos in ToRemove)
-			{
-				Position.Positions.Remove(pos);
-			}
-			*/
 		}
 
 		public static void BalanceUpdate(BinanceStreamBalanceUpdate update)
 		{
-			//Console.WriteLine($"Balance Update: {update.Asset} {update.BalanceDelta}");
-			//update.
+			Console.WriteLine($"{update.Asset} balance update. {update.BalanceDelta}");
 		}
 	}
 }

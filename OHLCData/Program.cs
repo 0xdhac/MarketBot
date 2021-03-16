@@ -82,7 +82,7 @@ namespace MarketBot
 			Console.WriteLine("");
 
 			//new Replay(Exchanges.Binance, "DOGEUSDT", OHLCVInterval.OneMinute, 1000, DateTime.UtcNow);
-			//new Replay(Exchanges.Localhost, "./DOTUSDT_OneMinute.csv", OHLCVInterval.FiveMinute, 0, null);
+			//new Replay(Exchanges.Localhost, "./ADAUSDT_OneMinute.csv", OHLCVInterval.FiveMinute, 0, null);
 
 			while (true)
 			{
@@ -120,7 +120,14 @@ namespace MarketBot
 				if(args[1].Equals("start", StringComparison.OrdinalIgnoreCase))
 				{
 					Console.WriteLine("Starting bot. Ctrl+C to STOP.");
-					RealtimeBot.Start();
+					if (RealtimeBot.Finish == true)
+					{
+						RealtimeBot.Finish = false;
+					}
+					else
+					{
+						RealtimeBot.Start();
+					}					
 				}
 				if(args[1].Equals("finish", StringComparison.OrdinalIgnoreCase))
 				{
@@ -230,10 +237,11 @@ namespace MarketBot
 
 		public static void Print(string input)
 		{
-			Console.Write($"{input}\n");
-			
-			Console.Write("> ");
-			Console.SetCursorPosition(2, Console.CursorTop);
+			ConsoleColor c = Console.ForegroundColor;
+			Console.ForegroundColor = ConsoleColor.Green;
+			Console.WriteLine(input);
+			Console.ForegroundColor = c;
+
 		}
 	}
 }

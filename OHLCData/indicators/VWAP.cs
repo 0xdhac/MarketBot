@@ -8,10 +8,13 @@ using MarketBot.interfaces;
 namespace MarketBot.indicators
 {
 	public class VWAP : Indicator<Tuple<decimal, decimal, decimal>>
-	{
+	{/*if outside of standard deviation band(2) then no entry
+if outside of sd band(.2-.5) then entry
+if above 9period ema, only long
+if below 9period ema, only short*/
 		public VWAP() : base() { }
 
-		public decimal this[int index]
+		public new decimal this[int index]
 		{
 			get => IndicatorData[index].Item3;
 		}

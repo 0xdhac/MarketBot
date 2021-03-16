@@ -18,8 +18,32 @@ namespace MarketBot.exchanges.binance
 			using (var client = new BinanceClient())
 			{
 				var result = client.Spot.System.GetExchangeInfo();
-				ExchangeInfo = result.Data;
+
+				if(!result.Success)
+				{
+					Console.WriteLine("Failed to update exchange info (used for symbol data like tick size, lot size, etc..; retrying..");
+					UpdateExchangeInfo();
+				}
+				else
+				{
+					ExchangeInfo = result.Data;
+				}
 			}
+		}
+
+		public static bool GetTickSize(string symbol, out decimal tick_size)
+		{
+			foreach (var s in ExchangeInfo.Symbols)
+			{
+				if (s.Name == symbol)
+				{
+					tick_size = s.PriceFilter.TickSize;
+					return true;
+				}
+			}
+
+			tick_size = default;
+			return false;
 		}
 
 		public static bool GetStepSizeAdjustedQuantity(string symbol, decimal quantity, out decimal result)
@@ -43,7 +67,7 @@ namespace MarketBot.exchanges.binance
 			return true;
 		}
 
-		public static bool GetTickSizeAdjustedQuantity(string symbol, decimal quantity, out decimal result)
+		public static bool GetTickSizeAdjustedValue(string symbol, decimal value, out decimal result)
 		{
 			if (ExchangeInfo == null)
 			{
@@ -54,8 +78,11 @@ namespace MarketBot.exchanges.binance
 			{
 				if (item.Name == symbol)
 				{
-					//int places = (1 / item.LotSizeFilter.StepSize).ToString().Count((c) => c == '0');
-					result = Math.Floor((quantity) * (1 / item.PriceFilter.TickSize)) / (1 / item.PriceFilter.TickSize);
+					int places = (1 / item.PriceFilter.TickSize).ToString().Count((c) => c == '0');
+					result = Math.Round(value, places);
+					
+
+					//result = Math.Floor((quantity) * (1 / item.PriceFilter.TickSize)) / (1 / item.PriceFilter.TickSize);
 					return true;
 				}
 			}

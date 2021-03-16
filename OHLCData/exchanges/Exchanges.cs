@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MarketBot.interfaces;
+using MarketBot.tools;
 
 namespace MarketBot
 {
@@ -20,8 +21,13 @@ namespace MarketBot
 		Ordered,
 		Filled,
 		Oco
-	}
+	};
 
+	public enum GenericOrderType
+	{
+		Market,
+		Limit
+	}
 	//public delegate void OrderUpdateCallback(OrderInfo info);
 	public delegate void ExitPositionCallback(Position pos);
 
@@ -33,12 +39,14 @@ namespace MarketBot
 		public decimal Entry;
 		public decimal Risk;
 		public decimal Profit;
+		public decimal Filled = 0;
 		public SignalType Type;
 		public int Period;
 		public bool Real;
 		public decimal Quantity;
 		public PositionStatus Status;
 		public decimal Commission;
+		public long OrderId;
 
 		public Position(SymbolData data, int period, SignalType signal, decimal entry_price, decimal risk_price, decimal profit_price, decimal quantity, bool real)
 		{
@@ -54,9 +62,20 @@ namespace MarketBot
 		{
 			Exchange	= exchange;
 			Symbol		= symbol;
-			Entry		= real ? ExchangeTasks.GetTickSizeAdjustedQuantity(exchange, symbol, entry_price) : entry_price;
-			Risk		= real ? ExchangeTasks.GetTickSizeAdjustedQuantity(exchange, symbol, risk_price): risk_price;
-			Profit		= real ? ExchangeTasks.GetTickSizeAdjustedQuantity(exchange, symbol, profit_price): profit_price;
+			Entry		= real ? ExchangeTasks.GetTickSizeAdjustedValue(exchange, symbol, entry_price) : entry_price;
+
+			if (real)
+			{
+				decimal tick_size;
+				if (!ExchangeTasks.GetTickSize(exchange, symbol, out tick_size))
+				{
+					throw new Exception($"[{symbol}] Tick size not found for symbol");
+				}
+				Entry += (tick_size * 5);
+			}
+
+			Risk		= real ? ExchangeTasks.GetTickSizeAdjustedValue(exchange, symbol, risk_price): risk_price;
+			Profit		= real ? ExchangeTasks.GetTickSizeAdjustedValue(exchange, symbol, profit_price): profit_price;
 			Quantity	= real ? ExchangeTasks.GetStepSizeAdjustedQuantity(exchange, symbol, quantity) : quantity;
 			Type		= signal;
 			Period		= period;
@@ -64,12 +83,19 @@ namespace MarketBot
 			Status		= PositionStatus.New;
 			Commission	= 0;
 
+			//Console.WriteLine($"{symbol}: {entry_price}, {risk_price} {Math.Abs((risk_price - entry_price) / entry_price)}, {profit_price} {Math.Abs((profit_price - entry_price) / entry_price)}");
+			//Console.WriteLine($"{symbol}: {Entry}, {Risk} {Math.Abs((Risk - Entry) / Entry)}, {Profit} {Math.Abs((Profit - Entry) / Entry)}");
+
 			Positions.Add(this);
 
 			if(Real == true)
 			{
-				Console.WriteLine($"[{symbol}] Position created. Type = {Type}, Entry @ {Entry}, Risk @ {Risk}, Profit @ {Profit}");
-				ExchangeTasks.PlaceOrder(Exchange, symbol, this);
+				//Console.WriteLine($"[{symbol}] Position created. Type = {Type}, Entry @ {Entry}, Risk @ {Risk}, Profit @ {Profit}");
+				//if (DateTime.UtcNow.Second > 5)
+				RealtimeBot.BuyCount++;
+				ExchangeTasks.PlaceOrder(Exchange, symbol, this, GenericOrderType.Limit);
+				//else
+				//	ExchangeTasks.PlaceOrder(Exchange, symbol, this, GenericOrderType.Buy);
 			}
 		}
 
@@ -131,6 +157,19 @@ namespace MarketBot
 			return w;
 		}
 
+		public static bool GetTickSize(Exchanges ex, string symbol, out decimal output)
+		{
+			switch (ex)
+			{
+				case Exchanges.Binance:
+					BinanceMarket.GetTickSize(symbol, out output);
+					return true;
+			}
+
+			output = default;
+			return false;
+		}
+
 		public static decimal GetStepSizeAdjustedQuantity(Exchanges ex, string symbol, decimal quantity)
 		{
 			switch (ex)
@@ -143,12 +182,12 @@ namespace MarketBot
 			return 0;
 		}
 
-		public static decimal GetTickSizeAdjustedQuantity(Exchanges ex, string symbol, decimal quantity)
+		public static decimal GetTickSizeAdjustedValue(Exchanges ex, string symbol, decimal quantity)
 		{
 			switch (ex)
 			{
 				case Exchanges.Binance:
-					BinanceMarket.GetTickSizeAdjustedQuantity(symbol, quantity, out quantity);
+					BinanceMarket.GetTickSizeAdjustedValue(symbol, quantity, out quantity);
 					return quantity;
 			}
 
@@ -157,12 +196,18 @@ namespace MarketBot
 
 
 
-		public static void PlaceOrder(Exchanges ex, string symbol, Position pos)
+		public static void PlaceOrder(Exchanges ex, string symbol, Position pos, GenericOrderType type)
 		{
 			switch(ex)
 			{
 				case Exchanges.Binance:
-					BinanceOrders.PlaceOrder(pos, pos.Type == SignalType.Long?Binance.Net.Enums.OrderSide.Buy:throw new Exception("NOT SUPPORTED YET"), Binance.Net.Enums.OrderType.Limit, 0, pos.Entry);
+					BinanceOrders.PlaceOrder(
+						pos, 
+						pos.Type == SignalType.Long?Binance.Net.Enums.OrderSide.Buy:throw new Exception("NOT SUPPORTED YET"), 
+						BinanceOrders.GetOrderType(type), 
+						0, 
+						pos.Quantity,
+						pos.Entry);
 					break;
 			}
 		}

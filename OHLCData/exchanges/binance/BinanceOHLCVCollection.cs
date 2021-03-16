@@ -63,7 +63,7 @@ namespace MarketBot
 						}
 						else
 						{
-							Console.WriteLine($"Error collecting symbol data for {Name}: {data.Error}");
+							Console.WriteLine($"Error collecting symbol data for {Name}{data.Error}");
 							CollectionFailed = true;
 						}
 					}

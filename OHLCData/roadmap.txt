@@ -16,8 +16,9 @@
 - VWAP + 600EMA + William's Alligator
 
 -REALTIMEBOT TODO
-- bot trying to market sell after oco already successful [RSRUSDT] -2010: Account has insufficient balance for requested action.
-- MAKE IT SO BOT PLACES LIMIT BUY INSTEAD OF MARKET BUY IF THE CURRENT TIME IS MORE THAN 5 SECONDS PAST THE MINUTE CLOSE
+-when an oco order expires
+- find out how to well if oco order expires
+find the risk order
 - CREATE STRATEGY: CANDLE CLOSES ABOVE 9 DAY EMA FOR FIRST TIME = LONG, CLOSES UNDER 9 DAY EMA FOR FIRST TIME = SHORT
 - FILL OR KILL LIMIT BUY AFTER X AMOUNT OF SECONDS OF MINUTE CLOSE
 - **ADD VWAP
