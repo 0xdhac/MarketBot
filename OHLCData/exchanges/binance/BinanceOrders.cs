@@ -46,6 +46,7 @@ namespace MarketBot.exchanges.binance
 			// Selling: pos.Filled
 			using (var client = new BinanceClient())
 			{
+				//client.Spot.
 				//client.Margin.Borrow() <- BORROW SELL
 				//client.Margin.Order.PlaceMarginOrder() BUY REPAY
 				//client.Margin.Order.Place

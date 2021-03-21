@@ -13,13 +13,13 @@ namespace MarketBot
 	{
 		public string Name { get; set; }
 		public bool CollectionFailed { get; set; }
-		public CustomList<OHLCVPeriod> Data { get; set; }
+		public HList<OHLCVPeriod> Data { get; set; }
 
 		public BinanceOHLCVCollection(string name)
 		{
 			Name = name;
 			CollectionFailed = false;
-			Data = new CustomList<OHLCVPeriod>();
+			Data = new HList<OHLCVPeriod>();
 		}
 
 		public OHLCVPeriod this[int index]
@@ -27,7 +27,7 @@ namespace MarketBot
 			get => Data[index];
 		}
 
-		public void CollectOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null)
+		public void CollectApiOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null)
 		{
 			KlineInterval klv = ConvertToExchangeInterval(interval);
 

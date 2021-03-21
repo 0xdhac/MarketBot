@@ -11,7 +11,7 @@ namespace MarketBot.indicators
 	{
 		public int Length;
 
-		public SMA(int length) : base()
+		public SMA(int length) : base(length)
 		{
 			Length = length;
 		}

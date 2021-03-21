@@ -9,39 +9,29 @@ namespace MarketBot.strategies.signals
 {
 	public class CMFCrossover : Strategy
 	{
-		//public EMA TrendLine;
-		public VWAP VWAP;
-
-		//Testing
 		public CMF Cmf;
-		public CustomList<decimal> Signal = new CustomList<decimal>();
+		public EMA EMA;
+
+		public HList<decimal> Signal = new HList<decimal>();
 
 		private int Trend_Length;
 		private int Short_Cmf_Length;
 		private int Signal_Length;
 
-		public CMFCrossover(SymbolData data, int trend_len, int short_len, int signal_len) : base(data)
+		public CMFCrossover(SymbolData data, int trend_len, int cmf_len, int signal_len) : 
+			base(data, $"{{0:{{name:\"EMA\",params:\"{trend_len}\"}},1:{{name:\"CMF\",params:\"{cmf_len}\"}}}}")
 		{
 			Trend_Length = trend_len;
-			Short_Cmf_Length = short_len;
+			Short_Cmf_Length = cmf_len;
 			Signal_Length = signal_len;
 
-			ApplyIndicators();
+			Cmf = (CMF)FindIndicator("CMF", Short_Cmf_Length);
+			EMA = (EMA)FindIndicator("EMA", Trend_Length);
+
 			FullCalcSignal();
 			Cmf.IndicatorData.OnAdd += CalculateSignal;
 		}
 
-		public override void ApplyIndicators()
-		{
-			//TrendLine = (EMA)DataSource.RequireIndicator("EMA",
-			//	new KeyValuePair<string, object>("Length", Trend_Length));
-
-			VWAP = (VWAP)DataSource.RequireIndicator("VWAP");
-
-
-			Cmf = (CMF)DataSource.RequireIndicator("CMF",
-				new KeyValuePair<string, object>("Length", Short_Cmf_Length));
-		}
 
 		private void CalculateSignal(object sender, EventArgs e)
 		{
@@ -102,7 +92,7 @@ namespace MarketBot.strategies.signals
 			if (new_period < 300)
 				return SignalType.None;
 
-			if (DataSource.Data[new_period].Low > VWAP[new_period] &&
+			if (Source.Data[new_period].Low > EMA[new_period].Item2 &&
 				Cmf[new_period].Item2 < Signal[new_period] &&
 				Cmf[old_period].Item2 > Signal[old_period] &&
 				Cmf[new_period].Item2 < 0) // AFTER A FEW TESTS, IT WAS UNANIMOUSLY BETTER FOR THE SIGNAL TO BE ON THE OPPOSITE SIDE OF THE ZERO LINE
@@ -111,7 +101,7 @@ namespace MarketBot.strategies.signals
 			}
 			
 
-			if (DataSource.Data[new_period].High < VWAP[new_period] &&
+			if (Source.Data[new_period].High < EMA[new_period].Item2 &&
 				Cmf[new_period].Item2 > Signal[new_period] &&
 				Cmf[old_period].Item2 < Signal[old_period] &&
 				Cmf[new_period].Item2 > 0)

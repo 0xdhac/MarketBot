@@ -17,6 +17,7 @@ using System.Drawing;
 using System.Configuration;
 using MarketBot.interfaces;
 using NLog;
+using MarketBot.strategies.condition;
 
 namespace MarketBot
 {
@@ -81,8 +82,9 @@ namespace MarketBot
 			Commands.Execute("help");
 			Console.WriteLine("");
 
-			//new Replay(Exchanges.Binance, "DOGEUSDT", OHLCVInterval.OneMinute, 1000, DateTime.UtcNow);
-			//new Replay(Exchanges.Localhost, "./ADAUSDT_OneMinute.csv", OHLCVInterval.FiveMinute, 0, null);
+			//new Replay(Exchanges.Binance, "SCUSDT", OHLCVInterval.ThirtyMinute, 100000, DateTime.UtcNow);
+			new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.ThirtyMinute, 0, null);
+			//BinanceAnalyzer.Run("USDT$", OHLCVInterval.ThirtyMinute);
 
 			while (true)
 			{
@@ -95,6 +97,11 @@ namespace MarketBot
 					Console.WriteLine($"- Command not found: {command}");
 				}
 			}
+		}
+
+		private static void TestDeleteLater(SymbolData data)
+		{
+			EMACondition e = new EMACondition(data, 20);
 		}
 
 		private static void HelpCommand(string[] args)

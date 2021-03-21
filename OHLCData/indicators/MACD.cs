@@ -16,7 +16,7 @@ namespace MarketBot.indicators
 		List<Tuple<bool, decimal>> ShortEMA = new List<Tuple<bool, decimal>>();
 		List<Tuple<bool, decimal>> LongEMA = new List<Tuple<bool, decimal>>();
 
-		public MACD(int short_ema, int long_ema, int signal_ema) : base()
+		public MACD(int short_ema, int long_ema, int signal_ema) : base(short_ema, long_ema, signal_ema)
 		{
 			Short_EMA_Length = short_ema;
 			Long_EMA_Length = long_ema;

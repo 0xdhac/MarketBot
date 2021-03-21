@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using MarketBot.strategies.signals;
 using MarketBot.interfaces;
 using MarketBot.strategies.position;
+using MarketBot.indicators;
 
 namespace MarketBot.tools
 {
@@ -25,7 +26,7 @@ namespace MarketBot.tools
 		private static decimal BetAmount = 0;
 		private static decimal BetPct = (decimal)0.005;
 
-		public static int ResetBetAmountEvery = 100;
+		public static int ResetBetAmountEvery = 5;
 
 		private static int Loaded = 0;
 
@@ -35,6 +36,7 @@ namespace MarketBot.tools
 			{
 				throw new Exception("Config setting not correct: 'BET_PERCENTAGE'");
 			}
+
 			Trades.Add(Exchanges.Binance, 0);
 			Wins.Add(Exchanges.Binance, 0);
 			Losses.Add(Exchanges.Binance, 0);
@@ -75,11 +77,32 @@ namespace MarketBot.tools
 			SequentialSymbolDownload(Exchanges.Binance);
 		}
 
+		private static bool BTCLoaded = false;
+
 		private static void SequentialSymbolDownload(Exchanges ex)
 		{
-			if(Loaded < TradingPairs[ex].Count)
+			if (BTCLoaded == false)
 			{
-				new SymbolData(ex, OHLCVInterval.OneMinute, TradingPairs[ex].ElementAt(Loaded++).Key, 1440, SymbolLoaded, true);
+				foreach (var item in TradingPairs[ex])
+				{
+					if(item.Key == "BTCUSDT")
+					{
+						new SymbolData(ex, OHLCVInterval.OneMinute, "BTCUSDT", 1440, SymbolLoaded, true);
+						BTCLoaded = true;
+					}
+				}
+			}
+			else if(Loaded < TradingPairs[ex].Count)
+			{
+				if (TradingPairs[ex].ElementAt(Loaded).Key != "BTCUSDT")
+				{
+					new SymbolData(ex, OHLCVInterval.OneMinute, TradingPairs[ex].ElementAt(Loaded++).Key, 1440, SymbolLoaded, true);
+				}
+				else
+				{
+					Loaded++;
+					SequentialSymbolDownload(ex);
+				}
 			}
 		}
 
@@ -105,9 +128,9 @@ namespace MarketBot.tools
 			}
 
 			Entry_Strategies[data.Exchange][data.Symbol].Add(new CMFCrossover(data, 200, 21, 30));
-			Entry_Strategies[data.Exchange][data.Symbol].Add(new MACDCrossover(data, 200, 12, 26, 9, 14));
+			Entry_Strategies[data.Exchange][data.Symbol].Add(new MACDCrossover(data, 200, 12, 26, 9));
 			Risk_Strategies[data.Exchange][data.Symbol].Add(new Swing(data, 2));
-			Risk_Strategies[data.Exchange][data.Symbol].Add(new ATR(data));
+			Risk_Strategies[data.Exchange][data.Symbol].Add(new strategies.position.ATR(data));
 
 			SequentialSymbolDownload(data.Exchange);
 
@@ -140,6 +163,8 @@ namespace MarketBot.tools
 			BetAmount = Wallets[ex].Total * BetPct;
 		}
 
+		private static VWAP BTC_Vwap = null;
+
 		public static void OnClose(object data, EventArgs e)
 		{
 			if (Finish == true)
@@ -150,7 +175,7 @@ namespace MarketBot.tools
 			SymbolData sym = (SymbolData)data;
 
 			// If not blacklisted and no discrepency in the symbol data
-			if(!TradingPairs[sym.Exchange][sym.Symbol] && !sym.Data.CollectionFailed)
+			if (!TradingPairs[sym.Exchange][sym.Symbol] && !sym.Data.CollectionFailed)
 			{
 				foreach(var strat in Entry_Strategies[sym.Exchange][sym.Symbol])
 				{
@@ -164,6 +189,22 @@ namespace MarketBot.tools
 			// Disable short positions for now
 			if(signal == SignalType.Short)
 			{
+				return;
+			}
+
+			if (BTC_Vwap == null)
+			{
+				SymbolData BTCSym = Symbols.Find((s) => s.Symbol == "BTCUSDT");
+
+				if (BTCSym != null)
+				{
+					BTC_Vwap = (VWAP)BTCSym.RequireIndicator("VWAP");
+				}
+			}
+
+			if (symbol.Data[symbol.Data.Data.Count - 1].Low < BTC_Vwap[BTC_Vwap.DataSource.Count - 1])
+			{
+				Console.WriteLine("Ignoring signal");
 				return;
 			}
 
@@ -181,9 +222,18 @@ namespace MarketBot.tools
 				}
 			}
 
+			decimal bet_amount = BetAmount;
 			if(BetAmount > Wallets[symbol.Exchange].Available)
 			{
-				return;
+				if(Wallets[symbol.Exchange].Available > 15)
+				{
+					bet_amount = 14;
+				}
+				else
+				{
+					return;
+				}
+				
 			}
 
 			int max_orders = int.Parse(Program.GetConfigSetting("NUM_ORDERS_BEFORE_STOPPING_BOT"));
@@ -209,7 +259,7 @@ namespace MarketBot.tools
 				return;
 
 			// Create position
-			new Position(symbol, period, signal, entry_price, risk_price, profit_price, BetAmount / entry_price, true);
+			new Position(symbol, period, signal, entry_price, risk_price, profit_price, bet_amount / entry_price, true);
 		}
 	}
 }

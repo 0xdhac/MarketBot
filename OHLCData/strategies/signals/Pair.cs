@@ -30,11 +30,6 @@ namespace MarketBot.strategies.signals
 			
 		}
 
-		public override void ApplyIndicators()
-		{
-			throw new NotImplementedException();
-		}
-
 		private void DataLoaded(SymbolData data)
 		{
 			object strat = Activator.CreateInstance(Type.GetType("MarketBot.strategies.signals." + StrategyName), ParamList);

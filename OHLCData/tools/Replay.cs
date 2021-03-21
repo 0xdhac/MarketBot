@@ -7,26 +7,34 @@ using Binance.Net.Interfaces;
 using MarketBot.strategies.signals;
 using MarketBot.interfaces;
 using MarketBot.strategies.position;
+using System.IO;
+using MarketBot.tools;
 
 namespace MarketBot
 {
+	enum BetResizeMode
+	{
+		Counter,
+		Win,
+		Loss
+	}
 	class Replay
 	{
 		public Strategy Current_Strategy;
 		public RiskStrategy Exit_Strategy;
-		public RiskStrategy Alt_Strategy;
 		public SymbolData Symbol;
 
 		private int Wins = 0;
 		private int Losses = 0;
-		private decimal RiskProfitRatio = (decimal)3;
+		private decimal RiskProfitRatio = (decimal)4;
 		private int Trades = 0;
 		private int TradePeriodsTotal = 0;
 		private decimal AccountTotal = 10000;
 		private decimal AccountTotal_Start = 0;
 		private decimal BetAmount = 0;
-		private decimal BetPct = (decimal)0.0334;
-		private int ResizeEvery = 5;
+		private decimal BetPct = (decimal)1;
+		private int ResizeEvery = 1;
+		private BetResizeMode ResizeMode = BetResizeMode.Counter;
 		private int SlicesUsed = 0;
 		private decimal TotalRisk = 0;
 
@@ -35,7 +43,18 @@ namespace MarketBot
 			Console.WriteLine($"Starting replay/collecting symbol data for {symbol} on exchange {exchange}.");
 			if (exchange == Exchanges.Localhost)
 			{
-				new SymbolData(symbol, CSVConversionMethod.Standard, OnSymbolLoaded);
+				var pattern = symbol + "-" + BinanceAnalyzer.GetKlineInterval(interval) + "*";
+
+				var files = Directory.GetFiles("./klines/", pattern);
+
+				if(files.Length == 0)
+				{
+					Console.WriteLine($"No files for symbol {symbol} found on interval {interval}.");
+					return;
+				}
+				files.OrderBy((v1) => v1);
+
+				new SymbolData(symbol, files, interval, CSVConversionMethod.BinanceVision, OnSymbolLoaded);
 			}
 			else
 			{
@@ -46,10 +65,11 @@ namespace MarketBot
 		void OnSymbolLoaded(SymbolData data)
 		{
 			Symbol = data;
-			Exit_Strategy = new Swing(data, 2);
-			Alt_Strategy = new ATR(data);
-			//Current_Strategy = new MACDCrossover(Symbol, 200, 12, 26, 9, 14);
-			Current_Strategy = new CMFCrossover(Symbol, 200, 21, 40);
+			Exit_Strategy = new ATR(data);
+			//Exit_Strategy = new Swing(data, 1);
+			Current_Strategy = new MACDCrossover(Symbol, 200, 12, 26, 9);
+			//Current_Strategy = new CMFCrossover(Symbol, 23, 55, 21);
+			//Current_Strategy = new Candlesticks(Symbol, 20, 55);
 
 			OnStrategyReady(Current_Strategy);
 		}
@@ -63,6 +83,7 @@ namespace MarketBot
 		public void Run()
 		{
 			AccountTotal_Start = AccountTotal;
+			BetAmount = AccountTotal * BetPct;
 			Console.WriteLine($"Running strategy on {Symbol.Symbol}");
 			bool buy_in_pos = bool.Parse(Program.GetConfigSetting("BUY_WHEN_IN_POSITION"));
 			for (int period = 0; period < Symbol.Data.Data.Count; period++)
@@ -88,13 +109,14 @@ namespace MarketBot
 			}
 
 			float profitability = (Losses == 0) ? -1 : ((float)Wins / (float)Losses) / ((float)1 / (float)RiskProfitRatio);
+			int trades = (Wins + Losses == 0) ? 1 : Wins + Losses;
 			Console.WriteLine($"Period Interval: {Symbol.Interval}");
 			Console.WriteLine($"Number Of Periods: {Symbol.Data.Data.Count}");
 			Console.WriteLine($"Entry Strategy: {Current_Strategy.GetName()}");
 			Console.WriteLine($"Exit Strategy: {Exit_Strategy.GetName()}");
 			Console.WriteLine($"Risk/Reward Ratio: 1:{(float)RiskProfitRatio}");
 			Console.WriteLine($"Average Number of Periods: {(float)TradePeriodsTotal / (float)Trades}");
-			Console.WriteLine($"Average risk size: {TotalRisk / (Wins + Losses)}");
+			Console.WriteLine($"Average risk size: {TotalRisk / (trades)}");
 			Console.WriteLine($"Wins: {Wins}");
 			Console.WriteLine($"Losses: {Losses}");
 			Console.WriteLine($"Profitability: {profitability}");
@@ -105,15 +127,18 @@ namespace MarketBot
 
 		void OnReplaySignal(SymbolData data, int period, SignalType signal)
 		{
+			if (signal == SignalType.Short)
+				return;
+
+			Console.WriteLine(data.Data[period].OpenTime);
+
 			decimal entry_price = data.Data[period].Close;
 			decimal risk_price = Exit_Strategy.GetRiskPrice(period, signal);
 			decimal profit = RiskProfitRatio;
 			
-
-			if (Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price) < 0.002)
+			if (Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price) < 0.001)
 			{
-				//profit = 2;
-				risk_price = Alt_Strategy.GetRiskPrice(period, signal);
+				//return;
 			}
 
 			TotalRisk += (decimal)Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price);
@@ -123,16 +148,15 @@ namespace MarketBot
 
 			if (entry_price - risk_price == 0)
 				return;
+			
+			decimal bet_amount = BetAmount > AccountTotal ? AccountTotal : BetAmount;
 
-			if (SlicesUsed == 0)
+			if (bet_amount <= 0)
 			{
-				BetAmount = AccountTotal * BetPct;
-				SlicesUsed = (SlicesUsed + 1) % ResizeEvery;
+				return;
 			}
 
-			//Console.WriteLine($"{Symbol.Data[period].OpenTime}");
-
-			new Position(data, period, signal, entry_price, risk_price, profit_price, entry_price / BetAmount, false);
+			new Position(data, period, signal, entry_price, risk_price, profit_price, bet_amount /entry_price, false);
 		}
 
 		public void ExitCallback(SymbolData data, Position pos, int period, bool TradeWon)
@@ -146,24 +170,23 @@ namespace MarketBot
 			TradePeriodsTotal += (period - pos.Period);
 
 			//$10 / 2LTC 5 * 0.0075
-			decimal EntryFee = (BetAmount / pos.Entry) * (decimal)0.00075; // $10 / 2 = 5 
-			decimal AssetAmount = (BetAmount / pos.Entry) - EntryFee;
-			decimal ProfitAmount = (AssetAmount * pos.Profit) - ((AssetAmount * pos.Profit) * (decimal)0.00075);
-			decimal RiskAmount = (AssetAmount * pos.Risk) - ((AssetAmount * pos.Risk) * (decimal)0.00075);
+			decimal Quantity = pos.Quantity;
+			decimal FeePct = (decimal)0.00075; // Correct
+			decimal EntryFee = Quantity * FeePct; // $10 / 2 = 5 The quantity I bought * 0.00075
+			decimal AssetAmount = Quantity - EntryFee;
+			decimal ProfitAmount = (AssetAmount * pos.Profit) - ((AssetAmount * pos.Profit) * FeePct); //Entry = 2, Profit = 1, Risk = 3, AssetAmount = 5. Enter at $10, Profit at $5, Risk at $15
+			decimal RiskAmount = (AssetAmount * pos.Risk) - ((AssetAmount * pos.Risk) * FeePct); // Entry = 2, Profit = 3, Risk = 1, AssetAmount = 5. Enter at $10, Profit at $15
+
 			switch (pos.Type)
 			{
 				case SignalType.Long:
 					switch (TradeWon)
 					{
 						case true:
-							AccountTotal -= BetAmount; // Account loses BetAmount
-							AccountTotal += ProfitAmount; // Gains ProfitAmount
-							//Console.WriteLine($"Win (Long): {((pos.Profit * BetAmount) / pos.Entry) - BetAmount}");
+							AccountTotal += ProfitAmount - (pos.Quantity * pos.Entry);
 							break;
 						case false:
-							AccountTotal -= BetAmount;
-							AccountTotal += RiskAmount;
-							//Console.WriteLine($"Loss (Long): {((pos.Risk * BetAmount) / pos.Entry) - BetAmount}");
+							AccountTotal += RiskAmount - (pos.Quantity * pos.Entry);
 							break;
 					}
 					break;
@@ -171,16 +194,34 @@ namespace MarketBot
 					switch (TradeWon)
 					{
 						case true:
-							AccountTotal += BetAmount;
-							AccountTotal -= ProfitAmount;
-							//Console.WriteLine($"Win (Short): {BetAmount - ((pos.Profit * BetAmount) / pos.Entry)}");
+							AccountTotal += (pos.Quantity * pos.Entry) - ProfitAmount;
 							break;
 						case false:
-							AccountTotal += BetAmount;
-							AccountTotal -= RiskAmount;
-							//Console.WriteLine($"Loss (Short): {BetAmount - ((pos.Risk * BetAmount) / pos.Entry)}");
+							AccountTotal += (pos.Quantity * pos.Entry) - RiskAmount;
 							break;
 					}
+					break;
+			}
+
+
+			if (AccountTotal < 0)
+				AccountTotal = 0;
+
+			switch (ResizeMode)
+			{
+				case BetResizeMode.Counter:
+					if (SlicesUsed++ % ResizeEvery == 0)
+						BetAmount = AccountTotal * BetPct;
+					break;
+				case BetResizeMode.Win:
+					if(TradeWon)
+						BetAmount = AccountTotal * BetPct;
+					break;
+				case BetResizeMode.Loss:
+					if (!TradeWon)
+						BetAmount = AccountTotal * BetPct;
+					break;
+				default:
 					break;
 			}
 
@@ -189,7 +230,6 @@ namespace MarketBot
 
 		private void CheckForExit(SymbolData data, int period, Position pos)
 		{
-			//Console.WriteLine($"{data.Data[pos.Period].CloseTime} {data.Data[pos.Period].Close} {pos.Profit} {pos.Risk}");
 			switch (pos.Type)
 			{
 				case SignalType.Long:

@@ -16,9 +16,9 @@ namespace MarketBot.strategies.position
 			switch (signal)
 			{
 				case SignalType.Long:
-					return GetPreviousLow(period, 2) - ATR_Data.IndicatorData[period].Item2;
+					return GetPreviousLow(period, 14) - ATR_Data.IndicatorData[period].Item2;
 				case SignalType.Short:
-					return GetPreviousHigh(period, 2) + ATR_Data.IndicatorData[period].Item2;
+					return GetPreviousHigh(period, 14) + ATR_Data.IndicatorData[period].Item2;
 			}
 
 			return 0;
@@ -58,7 +58,7 @@ namespace MarketBot.strategies.position
 
 		public override void ApplyIndicators()
 		{
-			ATR_Data = (indicators.ATR)Pair.RequireIndicator("ATR", new KeyValuePair<string, object>("Length", 14));
+			ATR_Data = (indicators.ATR)Pair.RequireIndicator("ATR", 14);
 		}
 
 		public override string GetName()

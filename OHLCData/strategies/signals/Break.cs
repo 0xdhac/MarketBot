@@ -12,15 +12,12 @@ namespace MarketBot.strategies.signals
 		private EMA TrendLine;
 		private int Lookback;
 
-		public Break(SymbolData data, int lookback) : base(data)
+		public Break(SymbolData data, int lookback) : 
+			base(data, $"{{0:{{name:\"EMA\",params:\"200\"}}}}")
 		{
 			Lookback = lookback;
-		}
 
-		public override void ApplyIndicators()
-		{
-			TrendLine = (EMA)DataSource.RequireIndicator("EMA",
-				new KeyValuePair<string, object>("Length", 200));
+			TrendLine = (EMA)FindIndicator("EMA", 200);
 		}
 
 		public override SignalType StrategyConditions(int new_period, int old_period)
@@ -32,13 +29,13 @@ namespace MarketBot.strategies.signals
 
 		public decimal GetPreviousHigh(int period, int length)
 		{
-			decimal high = DataSource.Data[period].High;
+			decimal high = Source.Data[period].High;
 
 			for (int i = 1; i < length; i++)
 			{
-				if (high < DataSource.Data[period - i].High)
+				if (high < Source.Data[period - i].High)
 				{
-					high = DataSource.Data[period - i].High;
+					high = Source.Data[period - i].High;
 				}
 			}
 
@@ -47,13 +44,13 @@ namespace MarketBot.strategies.signals
 
 		public decimal GetPreviousLow(int period, int length)
 		{
-			decimal low = DataSource.Data[period].Low;
+			decimal low = Source.Data[period].Low;
 
 			for (int i = 1; i < length; i++)
 			{
-				if (low > DataSource.Data[period - i].Low)
+				if (low > Source.Data[period - i].Low)
 				{
-					low = DataSource.Data[period - i].Low;
+					low = Source.Data[period - i].Low;
 				}
 			}
 

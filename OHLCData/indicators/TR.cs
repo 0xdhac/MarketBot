@@ -15,7 +15,7 @@ namespace MarketBot.indicators
 			IndicatorData.Add(new Tuple<decimal>(GetTR(DataSource, period)));
 		}
 
-		public static decimal GetTR(CustomList<OHLCVPeriod> data, int index)
+		public static decimal GetTR(HList<OHLCVPeriod> data, int index)
 		{
 			if (index > 0)
 			{

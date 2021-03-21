@@ -10,7 +10,7 @@ namespace MarketBot.indicators
 	public class CMF : Indicator<Tuple<bool, decimal>>
 	{
 		int Length;
-		public CMF(int length) : base()
+		public CMF(int length) : base(length)
 		{
 			Length = length;
 		}

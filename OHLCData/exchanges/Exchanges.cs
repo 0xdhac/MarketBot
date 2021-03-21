@@ -10,9 +10,7 @@ namespace MarketBot
 	public enum Exchanges
 	{
 		Localhost,
-		Binance,
-		Kucoin,
-		Ameritrade
+		Binance
 	};
 
 	public enum PositionStatus
@@ -228,7 +226,7 @@ namespace MarketBot
 			{
 				case Exchanges.Binance:
 					BinanceOHLCVCollection collection = new BinanceOHLCVCollection(symbol);
-					collection.CollectOHLCV(interval, periods, callback, screener_update);
+					collection.CollectApiOHLCV(interval, periods, callback, screener_update);
 					return collection;
 				default:
 					throw new Exception("Invalid exchange");

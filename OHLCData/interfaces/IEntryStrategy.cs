@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Binance.Net;
+using MarketBot.interfaces;
 
 namespace MarketBot
 {
@@ -23,16 +24,23 @@ namespace MarketBot
 		string GetName();
 	}
 
-	public abstract class Strategy : IEntryStrategy 
+	public abstract class Strategy : IEntryStrategy
 	{
-		public SymbolData DataSource;
-		
+		public List<IIndicator> Indicators = new List<IIndicator>();
+		public SymbolData Source;
 
-		public Strategy(SymbolData data)
+		public Strategy(SymbolData data, IndicatorList list = null)
 		{
-			DataSource = data;
+			Source = data;
+
+			if(list != null)
+			{
+				foreach (var indicator in list)
+				{
+					Indicators.Add(Source.RequireIndicator(indicator.Key, indicator.Value.ToArray()));
+				}
+			}
 		}
-		public abstract void ApplyIndicators();
 
 		public virtual void Run(int period, SignalCallback callback)
 		{
@@ -42,8 +50,39 @@ namespace MarketBot
 			SignalType signal = StrategyConditions(period - 1, period);
 			if (signal != SignalType.None)
 			{
-				callback(DataSource, period, signal);
+				callback(Source, period, signal);
 			}
+		}
+
+		public IIndicator FindIndicator(string name, params object[] inputs)
+		{
+			foreach(var indicator in Indicators)
+			{
+				if(indicator.GetType().Name == name)
+				{
+					bool found = true;
+					for(int i = 0; i < inputs.Length; i++)
+					{
+						if (i >= indicator.Inputs.Count)
+						{
+							break;
+						}
+
+						if (!indicator.Inputs[i].Equals(inputs[i]))
+						{
+							found = false;
+							break;
+						}
+					}
+
+					if(found == true)
+					{
+						return indicator;
+					}
+				}
+			}
+
+			return null;
 		}
 
 		public abstract SignalType StrategyConditions(int old_period, int new_period);

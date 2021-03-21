@@ -16,6 +16,17 @@
 - VWAP + 600EMA + William's Alligator
 
 -REALTIMEBOT TODO
+- Download all symbol data to hdd
+- Scan all of them in one go
+- Information to learn:
+	- Best entry strategy
+	- Best exit strategy
+	- Best risk/reward ratio
+	- Minimum risk level for the most profit
+	- Maximum risk level for the most profit? Maybe not
+
+Find the most profitable symbol for CMF/MACD
+Go all in every time it gets a signal
 -when an oco order expires
 - find out how to well if oco order expires
 find the risk order

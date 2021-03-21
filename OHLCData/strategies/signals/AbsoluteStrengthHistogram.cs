@@ -13,11 +13,6 @@ namespace MarketBot.strategies.signals
 			
 		}
 
-		public override void ApplyIndicators()
-		{
-
-		}
-
 		public override void Run(int period, SignalCallback callback)
 		{
 

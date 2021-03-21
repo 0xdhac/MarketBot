@@ -144,6 +144,7 @@ namespace MarketBot.exchanges.binance
 							}
 							else if(update.Status == OrderStatus.Filled)
 							{
+								//Console.WriteLine($"{pos.Symbol} Sold: {update.LastQuantityFilled}");
 								pos.Filled -= update.LastQuantityFilled;
 								if(++RealtimeBot.Trades[pos.Exchange] % RealtimeBot.ResetBetAmountEvery == 0)
 								{

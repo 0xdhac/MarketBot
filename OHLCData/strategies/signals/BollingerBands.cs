@@ -21,11 +21,6 @@ namespace MarketBot.strategies.signals
 			return SignalType.None;
 		}
 
-		public override void ApplyIndicators()
-		{
-			throw new NotImplementedException();
-		}
-
 		public override string GetName()
 		{
 			return "Bollinger Bands";

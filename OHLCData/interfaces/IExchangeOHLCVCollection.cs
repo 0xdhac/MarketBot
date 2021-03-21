@@ -46,22 +46,22 @@ namespace MarketBot
 	{
 		bool CollectionFailed { get; set; }
 		string Name { get; set; }
-		CustomList<OHLCVPeriod> Data { get; set; }
-		void CollectOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null);
+		HList<OHLCVPeriod> Data { get; set; }
+		void CollectApiOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null);
 		OHLCVPeriod this[int index] { get; }
 	}
 
 	public class GenericOHLCVCollection : IExchangeOHLCVCollection
 	{
 		public string Name { get; set; }
-		public CustomList<OHLCVPeriod> Data { get; set; }
+		public HList<OHLCVPeriod> Data { get; set; }
 		public OHLCVPeriod this[int index] { get => Data[index]; }
 		public bool CollectionFailed { get; set; }
 
 		public GenericOHLCVCollection()
 		{
-			Data = new CustomList<OHLCVPeriod>();
+			Data = new HList<OHLCVPeriod>();
 		}
-		public void CollectOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null) { }
+		public void CollectApiOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null) { }
 	}
 }

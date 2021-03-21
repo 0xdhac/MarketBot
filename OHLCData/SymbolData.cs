@@ -15,7 +15,7 @@ namespace MarketBot
 		public string Symbol;
 		public Exchanges Exchange;
 		public IExchangeOHLCVCollection Data;
-		public CustomList<IIndicator> Indicators = new CustomList<IIndicator>();
+		public HList<IIndicator> Indicators = new HList<IIndicator>();
 		public bool SymbolDataIsLoaded = false;
 		private Action<SymbolData> ExternalCollectionCallback;
 		public OHLCVInterval Interval;
@@ -35,17 +35,20 @@ namespace MarketBot
 			Data = ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, CollectionCallback, screener_update, StartTime);
 		}
 
-		public SymbolData(string file_path, CSVConversionMethod method, Action<SymbolData> symbol_loaded_callback)
+		public SymbolData(string symbol, string[] files, OHLCVInterval interval, CSVConversionMethod method, Action<SymbolData> symbol_loaded_callback)
 		{
 			Exchange = Exchanges.Localhost;
-			Symbol = file_path;
+			Symbol = symbol;
 			Data = new GenericOHLCVCollection();
+			Interval = interval;
 
-			CSVToOHLCData.Convert(file_path, Data.Data, method);
-			SymbolDataIsLoaded = true;
-
+			foreach (var file in files)
+			{
+				CSVToOHLCData.Convert(file, Data.Data, method);
+			}
+			
 			Periods = Data.Data.Count;
-
+			SymbolDataIsLoaded = true;
 			symbol_loaded_callback(this);
 		}
 
@@ -96,25 +99,24 @@ namespace MarketBot
 			return null;
 		}
 
-		public IIndicator RequireIndicator(string indicator_name, params KeyValuePair<string, object>[] field_list)
+		public IIndicator RequireIndicator(string indicator_name, params object[] inputs)
 		{
-			//Console.WriteLine()
 			foreach (var indicator in Indicators)
 			{
 				if (indicator.GetType().Name == indicator_name)
 				{
 					bool fields_found = true;
-					foreach (var pair in field_list)
+					for (int i = 0; i < indicator.Inputs.Count; i++)
 					{
-						FieldInfo property = indicator.GetType().GetField(pair.Key);
-						
-						if (property != null)
+						if(i >= inputs.Length)
 						{
-							if (!property.GetValue(indicator).Equals(pair.Value))
-							{
-								fields_found = false;
-								break;
-							}
+							throw new Exception("Invalid number of inputs for indicator");
+						}
+
+						if (!inputs[i].Equals(indicator.Inputs[i]))
+						{
+							fields_found = false;
+							break;
 						}
 					}
 
@@ -125,13 +127,7 @@ namespace MarketBot
 				}
 			}
 
-			object[] fields = new object[field_list.Length];
-			for(int i = 0; i < fields.Length; i++)
-			{
-				fields[i] = field_list[i].Value;
-			}
-
-			IIndicator new_indicator_instance = (IIndicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), fields);
+			IIndicator new_indicator_instance = (IIndicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), inputs);
 			ApplyIndicator(new_indicator_instance);
 			return new_indicator_instance;
 		}

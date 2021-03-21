@@ -42,6 +42,9 @@
     <Reference Include="CsvHelper, Version=26.0.0.0, Culture=neutral, PublicKeyToken=8c4959082be5c823, processorArchitecture=MSIL">
       <HintPath>..\packages\CsvHelper.26.0.1\lib\net47\CsvHelper.dll</HintPath>
     </Reference>
+    <Reference Include="DotNetZip, Version=1.15.0.0, Culture=neutral, PublicKeyToken=6583c7c814667745, processorArchitecture=MSIL">
+      <HintPath>..\packages\DotNetZip.1.15.0\lib\net40\DotNetZip.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=1.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.1.1.0\lib\net461\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
     </Reference>
@@ -166,7 +169,7 @@
     <Compile Include="Blacklist.cs" />
     <Compile Include="Commands.cs" />
     <Compile Include="CSVToOHLCData.cs" />
-    <Compile Include="CustomList.cs" />
+    <Compile Include="HList.cs" />
     <Compile Include="exchanges\binance\BinanceMarket.cs" />
     <Compile Include="exchanges\binance\BinanceOHLCVCollection.cs" />
     <Compile Include="exchanges\binance\BinanceOrders.cs" />
@@ -174,6 +177,7 @@
     <Compile Include="exchanges\binance\BinanceScreener.cs" />
     <Compile Include="exchanges\binance\BinanceWallet.cs" />
     <Compile Include="exchanges\Exchanges.cs" />
+    <Compile Include="IndicatorList.cs" />
     <Compile Include="indicators\ATR.cs" />
     <Compile Include="indicators\BollingerBands.cs" />
     <Compile Include="indicators\CMF.cs" />
@@ -185,11 +189,18 @@
     <Compile Include="indicators\Stochastic.cs" />
     <Compile Include="indicators\TR.cs" />
     <Compile Include="indicators\VWAP.cs" />
+    <Compile Include="interfaces\Condition.cs" />
     <Compile Include="interfaces\IExchangeOHLCVCollection.cs" />
     <Compile Include="interfaces\IIndicators.cs" />
     <Compile Include="interfaces\IRiskStrategy.cs" />
     <Compile Include="interfaces\IWallet.cs" />
+    <Compile Include="strategies\condition\ADXCondition.cs" />
+    <Compile Include="strategies\condition\EMAOverEMACondition.cs" />
+    <Compile Include="strategies\condition\EMACondition.cs" />
+    <Compile Include="strategies\condition\RSICondition.cs" />
+    <Compile Include="strategies\condition\VWAPCondition.cs" />
     <Compile Include="strategies\position\ATR.cs" />
+    <Compile Include="strategies\signals\Candlesticks.cs" />
     <Compile Include="strategies\signals\CMFCrossover.cs" />
     <Compile Include="strategies\position\Swing.cs" />
     <Compile Include="strategies\signals\AbsoluteStrengthHistogram.cs" />
@@ -201,6 +212,7 @@
     <Compile Include="strategies\position\DonchianChannels.cs" />
     <Compile Include="strategies\position\ParabolicSAR.cs" />
     <Compile Include="strategies\signals\Pair.cs" />
+    <Compile Include="tools\Analyzer.cs" />
     <Compile Include="tools\RealtimeBot.cs" />
     <Compile Include="tools\Replay.cs" />
     <Compile Include="interfaces\IEntryStrategy.cs" />

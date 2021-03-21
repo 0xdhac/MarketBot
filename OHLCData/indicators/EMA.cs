@@ -12,7 +12,7 @@ namespace MarketBot.indicators
 	{
 		public int Length;
 
-		public EMA(int length) : base()
+		public EMA(int length) : base(length)
 		{
 			Length = length;
 		}
@@ -49,35 +49,6 @@ namespace MarketBot.indicators
 				IndicatorData.Add(new Tuple<bool, decimal>(true, ema_today));
 			}
 		}
-
-		/*
-		public static decimal GetEMA(decimal[,] list, int index, int length)
-		{
-			// Index 0 = Value, Index 1 = EMA
-			if(index - length < 0)
-				return 0;
-
-			decimal weight = (decimal)2.0 / (length + (decimal)1.0);
-
-			decimal previous_ema;
-			if(list[index - 1,1] > (decimal)0.0)
-			{
-				previous_ema = list[index - 1, 1];
-			}
-			else
-			{
-				decimal sum = 0;
-				for (int i = 0; i < length; i++)
-				{
-					sum += list[index - i, 0];
-				}
-
-				previous_ema = sum / length;
-			}
-
-			return list[index,0] * weight + previous_ema * (1 - weight);
-		}
-		*/
 
 		public static decimal GetEMA(decimal current_value, int length, decimal previous_ema)
 		{

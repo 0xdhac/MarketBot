@@ -11,7 +11,7 @@ namespace MarketBot.indicators
 	{
 		int Length;
 
-		public ATR(int length) : base()
+		public ATR(int length) : base(length)
 		{
 			Length = length;
 		}
@@ -28,7 +28,7 @@ namespace MarketBot.indicators
 			}
 		}
 
-		public static decimal GetATR(CustomList<OHLCVPeriod> data, int index, int length)
+		public static decimal GetATR(HList<OHLCVPeriod> data, int index, int length)
 		{
 			if(index - length < 0)
 			{
