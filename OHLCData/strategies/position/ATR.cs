@@ -24,17 +24,21 @@ namespace MarketBot.strategies.position
 			return 0;
 		}
 
-		public ATR(SymbolData data) : base(data) { }
+		public ATR(SymbolData data) :
+			base(data, $"{{\"indicators\":[{{\"name\":\"ATR\", \"inputs\":[14]}}]}}")
+		{
+			ATR_Data = (indicators.ATR)FindIndicator("ATR", 14);
+		}
 
 		public decimal GetPreviousHigh(int period, int length)
 		{
-			decimal high = Pair.Data.Data[period].High;
+			decimal high = Source.Data.Data[period].High;
 
 			for(int i = 1; i < length; i++)
 			{
-				if(high < Pair.Data.Data[period - i].High)
+				if(high < Source.Data.Data[period - i].High)
 				{
-					high = Pair.Data.Data[period - i].High;
+					high = Source.Data.Data[period - i].High;
 				}
 			}
 
@@ -43,22 +47,17 @@ namespace MarketBot.strategies.position
 
 		public decimal GetPreviousLow(int period, int length)
 		{
-			decimal low = Pair.Data.Data[period].Low;
+			decimal low = Source.Data.Data[period].Low;
 
 			for (int i = 1; i < length; i++)
 			{
-				if (low > Pair.Data.Data[period - i].Low)
+				if (low > Source.Data.Data[period - i].Low)
 				{
-					low = Pair.Data.Data[period - i].Low;
+					low = Source.Data.Data[period - i].Low;
 				}
 			}
 
 			return low;
-		}
-
-		public override void ApplyIndicators()
-		{
-			ATR_Data = (indicators.ATR)Pair.RequireIndicator("ATR", 14);
 		}
 
 		public override string GetName()

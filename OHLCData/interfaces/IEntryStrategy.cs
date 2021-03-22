@@ -5,6 +5,10 @@ using System.Text;
 using System.Threading.Tasks;
 using Binance.Net;
 using MarketBot.interfaces;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json;
+using System.IO;
+using System.Dynamic;
 
 namespace MarketBot
 {
@@ -26,6 +30,7 @@ namespace MarketBot
 
 	public abstract class Strategy : IEntryStrategy
 	{
+		public List<Condition> Conditions = new List<Condition>();
 		public List<IIndicator> Indicators = new List<IIndicator>();
 		public SymbolData Source;
 
@@ -50,7 +55,20 @@ namespace MarketBot
 			SignalType signal = StrategyConditions(period - 1, period);
 			if (signal != SignalType.None)
 			{
-				callback(Source, period, signal);
+				bool send = true;
+				foreach (var condition in Conditions)
+				{
+					if (condition.Allows(period, signal) == false)
+					{
+						send = false;
+						break;
+					}
+				}
+
+				if(send == true)
+				{
+					callback(Source, period, signal);
+				}
 			}
 		}
 
@@ -83,6 +101,25 @@ namespace MarketBot
 			}
 
 			return null;
+		}
+
+		public dynamic ToExpando()
+		{
+			Dictionary<string, object> expando = new Dictionary<string, object>();
+
+			Dictionary<string, object[]> indicator_inputs = new Dictionary<string, object[]>();
+			foreach(var indicator in Indicators)
+			{
+				indicator_inputs.Add(indicator.GetType().Name, indicator.Inputs.ToArray());
+			}
+			expando.Add("indicators", indicator_inputs);
+
+			foreach (var condition in Conditions)
+			{
+				expando.Add(condition.GetType().Name, condition.ToExpando());
+			}
+
+			return expando;
 		}
 
 		public abstract SignalType StrategyConditions(int old_period, int new_period);

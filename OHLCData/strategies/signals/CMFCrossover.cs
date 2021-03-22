@@ -19,7 +19,7 @@ namespace MarketBot.strategies.signals
 		private int Signal_Length;
 
 		public CMFCrossover(SymbolData data, int trend_len, int cmf_len, int signal_len) : 
-			base(data, $"{{0:{{name:\"EMA\",params:\"{trend_len}\"}},1:{{name:\"CMF\",params:\"{cmf_len}\"}}}}")
+			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{trend_len}]}},{{\"name\":\"CMF\", \"inputs\":[{cmf_len}]}}]}}")
 		{
 			Trend_Length = trend_len;
 			Short_Cmf_Length = cmf_len;

@@ -4,19 +4,32 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MarketBot.interfaces;
+using MarketBot.indicators;
 
 namespace MarketBot.strategies.condition
 {
 	class EMACondition : Condition
 	{
-		public EMACondition(SymbolData data, int length) : base(data, $"{{0:{{name:\"EMA\",params:\"{length}\"}}}}")
+		private EMA EMA;
+		public EMACondition(SymbolData data, int length) : 
+			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{length}]}}]}}")
 		{
-			
+			EMA = (EMA)FindIndicator("EMA", length);
 		}
 
-		public override SignalType[] GetAllowedSignals()
+		public override SignalType[] GetAllowedSignals(int period)
 		{
-			return new SignalType[] { SignalType.Long };
+			List<SignalType> signals = new List<SignalType>();
+			if (period >= EMA.Length + 50)
+			{
+				if (Source.Data[period].Close > EMA[period].Item2)
+					signals.Add(SignalType.Long);
+
+				if (Source.Data[period].High < EMA[period].Item2)
+					signals.Add(SignalType.Short);
+			}
+
+			return signals.ToArray();
 		}
 	}
 }

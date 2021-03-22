@@ -26,7 +26,7 @@ namespace MarketBot
 
 		private int Wins = 0;
 		private int Losses = 0;
-		private decimal RiskProfitRatio = (decimal)4;
+		private decimal RiskProfitRatio = (decimal)2;
 		private int Trades = 0;
 		private int TradePeriodsTotal = 0;
 		private decimal AccountTotal = 10000;
@@ -67,9 +67,10 @@ namespace MarketBot
 			Symbol = data;
 			Exit_Strategy = new ATR(data);
 			//Exit_Strategy = new Swing(data, 1);
-			Current_Strategy = new MACDCrossover(Symbol, 200, 12, 26, 9);
+			//Current_Strategy = new MACDCrossover(Symbol, 200, 12, 26, 9);
 			//Current_Strategy = new CMFCrossover(Symbol, 23, 55, 21);
 			//Current_Strategy = new Candlesticks(Symbol, 20, 55);
+			Current_Strategy = new ThreelineStrike(Symbol, 50);
 
 			OnStrategyReady(Current_Strategy);
 		}

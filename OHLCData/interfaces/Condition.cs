@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,13 +14,16 @@ namespace MarketBot.interfaces
 		public List<KeyValuePair<string, object>> Inputs = new List<KeyValuePair<string, object>>();
 		public List<IIndicator> Indicators = new List<IIndicator>();
 
-		public Condition(SymbolData data, IndicatorList list)
+		public Condition(SymbolData data, IndicatorList list = null)
 		{
 			Source = data;
 
-			foreach(var indicator in list)
+			if(list != null)
 			{
-				Indicators.Add(Source.RequireIndicator(indicator.Key, indicator.Value.ToArray()));
+				foreach (var indicator in list)
+				{
+					Indicators.Add(Source.RequireIndicator(indicator.Key, indicator.Value.ToArray()));
+				}
 			}
 		}
 
@@ -53,6 +58,25 @@ namespace MarketBot.interfaces
 			return null;
 		}
 
-		public abstract SignalType[] GetAllowedSignals();
+		public dynamic ToExpando()
+		{
+			Dictionary<string, object> expando = new Dictionary<string, object>();
+
+			Dictionary<string, object[]> indicator_inputs = new Dictionary<string, object[]>();
+			foreach (var indicator in Indicators)
+			{
+				indicator_inputs.Add(indicator.GetType().Name, indicator.Inputs.ToArray());
+			}
+			expando.Add("indicators", indicator_inputs);
+
+			return expando;
+		}
+
+		public abstract SignalType[] GetAllowedSignals(int period);
+
+		public bool Allows(int period, SignalType signal)
+		{
+			return GetAllowedSignals(period).Contains(signal);
+		}
 	}
 }

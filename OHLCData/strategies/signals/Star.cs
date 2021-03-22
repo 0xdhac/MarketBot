@@ -8,15 +8,15 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.signals
 {
-	public class Candlesticks : Strategy
+	public class Star : Strategy
 	{
 		private int ShortEmaLength;
 		private int LongEmaLength;
 		private EMA ShortEMA;
 		private EMA LongEMA;
 
-		public Candlesticks(SymbolData data, int ema_length, int long_ema_length) : 
-			base(data, $"{{0:{{name:\"EMA\",params:\"{ema_length}\"}},1:{{name:\"EMA\",params:\"{long_ema_length}\"}}}}")
+		public Star(SymbolData data, int ema_length, int long_ema_length) : 
+			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{ema_length}]}},{{\"name\":\"EMA\", \"inputs\":[{long_ema_length}]}}]}}")
 		{
 			ShortEmaLength = ema_length;
 			LongEmaLength = long_ema_length;

@@ -20,6 +20,11 @@ namespace MarketBot
 			Indicators = indicators;
 		}
 
+		public IndicatorList(object[,] list)
+		{
+
+		}
+
 		public IEnumerator<KeyValuePair<string, List<object>>> GetEnumerator()
 		{
 			return Indicators.GetEnumerator();
@@ -43,11 +48,61 @@ namespace MarketBot
 			get { return Indicators[position]; }
 		}
 
+		public static implicit operator IndicatorList(string json)
+		{
+			List<KeyValuePair<string, List<object>>> indicators = new List<KeyValuePair<string, List<object>>>();
+
+			// Convert json to Indicators field
+			//JsonSerializerSettings
+			dynamic result = JsonConvert.DeserializeObject(json);
+
+			if (result.ContainsKey("indicators"))
+			{
+				var list = result["indicators"];
+				
+				foreach(var item in list)
+				{
+					if (item.ContainsKey("name"))
+					{
+						List<object> inputs = new List<object>();
+						if (item.ContainsKey("inputs"))
+						{
+							foreach(var input in item.inputs)
+							{
+								if (int.TryParse(input.ToString(), out int number))
+								{
+									inputs.Add(number);
+								}
+								else if (decimal.TryParse(input.ToString(), out decimal dnumber))
+								{
+									inputs.Add(dnumber);
+								}
+								else
+								{
+									throw new FormatException("Unrecognized 'input' data type found.");
+								}
+							}
+						}
+
+						indicators.Add(new KeyValuePair<string, List<object>>(item.name.ToString(), inputs));
+					}
+				}
+			}
+			else
+			{
+				throw new Exception("'indicators' key not found");
+			}
+
+			return new IndicatorList(indicators);
+		}
+
+		/*
 		public static implicit operator IndicatorList(string input)
 		{
 			List<KeyValuePair<string, List<object>>> indicators = new List<KeyValuePair<string, List<object>>>();
 
 			// Convert json to Indicators field
+			//JsonSerializerSettings
 			dynamic result = JsonConvert.DeserializeObject(input);
 
 			int indicator = 0;
@@ -101,6 +156,7 @@ namespace MarketBot
 
 			return new IndicatorList(indicators);
 		}
+		*/
 
 		IEnumerator IEnumerable.GetEnumerator()
 		{

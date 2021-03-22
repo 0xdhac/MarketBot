@@ -23,8 +23,9 @@ namespace MarketBot.strategies.signals
 		private int Long_Macd_Length;
 		private int Signal_Length;
 
-		public MACDCrossover(SymbolData data, int trend_len, int short_len, int long_len, int signal_len) : 
-			base(data, $"{{0:{{name:\"EMA\",params:\"{trend_len}\"}},1:{{name:\"EMA\",params:\"{short_len}\"}},2:{{name:\"EMA\",params:\"{long_len}\"}}}}") 
+		public MACDCrossover(SymbolData data, int trend_len, int short_len, int long_len, int signal_len) :
+			//base(data, $"{{0:{{name:\"EMA\",params:\"{trend_len}\"}},1:{{name:\"EMA\",params:\"{short_len}\"}},2:{{name:\"EMA\",params:\"{long_len}\"}}}}")
+			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{trend_len}]}},{{\"name\":\"EMA\", \"inputs\":[{short_len}]}},{{\"name\":\"EMA\", \"inputs\":[{long_len}]}}]}}")
 		{
 			Trend_Length = trend_len;
 			Short_Macd_Length = short_len;

@@ -200,7 +200,7 @@
     <Compile Include="strategies\condition\RSICondition.cs" />
     <Compile Include="strategies\condition\VWAPCondition.cs" />
     <Compile Include="strategies\position\ATR.cs" />
-    <Compile Include="strategies\signals\Candlesticks.cs" />
+    <Compile Include="strategies\signals\Star.cs" />
     <Compile Include="strategies\signals\CMFCrossover.cs" />
     <Compile Include="strategies\position\Swing.cs" />
     <Compile Include="strategies\signals\AbsoluteStrengthHistogram.cs" />
@@ -212,6 +212,7 @@
     <Compile Include="strategies\position\DonchianChannels.cs" />
     <Compile Include="strategies\position\ParabolicSAR.cs" />
     <Compile Include="strategies\signals\Pair.cs" />
+    <Compile Include="strategies\signals\ThreelineStrike.cs" />
     <Compile Include="tools\Analyzer.cs" />
     <Compile Include="tools\RealtimeBot.cs" />
     <Compile Include="tools\Replay.cs" />

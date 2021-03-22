@@ -18,6 +18,7 @@ using System.Configuration;
 using MarketBot.interfaces;
 using NLog;
 using MarketBot.strategies.condition;
+using MarketBot.strategies.signals;
 
 namespace MarketBot
 {
@@ -82,8 +83,10 @@ namespace MarketBot
 			Commands.Execute("help");
 			Console.WriteLine("");
 
+			SymbolData s = new SymbolData(Exchanges.Binance, OHLCVInterval.ThirtyMinute, "BTCUSDT", 1000, TestDeleteLater, false);
+
 			//new Replay(Exchanges.Binance, "SCUSDT", OHLCVInterval.ThirtyMinute, 100000, DateTime.UtcNow);
-			new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.ThirtyMinute, 0, null);
+			//new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.ThirtyMinute, 0, null);
 			//BinanceAnalyzer.Run("USDT$", OHLCVInterval.ThirtyMinute);
 
 			while (true)
@@ -101,7 +104,9 @@ namespace MarketBot
 
 		private static void TestDeleteLater(SymbolData data)
 		{
-			EMACondition e = new EMACondition(data, 20);
+			ThreelineStrike t = new ThreelineStrike(data, 10);
+			t.Conditions.Add(new EMACondition(data, 200));
+			t.ToExpando();
 		}
 
 		private static void HelpCommand(string[] args)
