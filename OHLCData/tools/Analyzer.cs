@@ -32,7 +32,9 @@ namespace MarketBot.tools
 
 		public static void Run(string pattern, OHLCVInterval interval)
 		{
-			Pairs = BinanceMarket.GetTradingPairs(pattern);
+			Console.WriteLine("Running Analyzer");
+
+			Pairs = BinanceMarket.GetTradingPairs(pattern, true);
 			DownloadKlines(pattern, interval);
 		}
 
@@ -47,11 +49,10 @@ namespace MarketBot.tools
 
 			foreach(var pair in Pairs)
 			{
+				Console.WriteLine($"Downloading {pair} : {interval}");
 				var list = DownloadZipFiles(pair, interval);
 				foreach(var file in list)
 					Extract(file);
-
-
 			}
 		}
 

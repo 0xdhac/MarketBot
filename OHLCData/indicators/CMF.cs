@@ -9,15 +9,17 @@ namespace MarketBot.indicators
 {
 	public class CMF : Indicator<Tuple<bool, decimal>>
 	{
-		int Length;
-		public CMF(int length) : base(length)
+		int Length = 0;
+		public CMF(SymbolData data, int length) : base(data, length){}
+
+		public new decimal this[int index]
 		{
-			Length = length;
+			get => IndicatorData[index].Item2;
 		}
 
 		public override void Calculate(int period)
 		{
-			if(period - Length < 0)
+			if(period - (int)Inputs[Length] < 0)
 			{
 				IndicatorData.Add(new Tuple<bool, decimal>(false, 0));
 				return;
@@ -25,10 +27,10 @@ namespace MarketBot.indicators
 
 			decimal mfv_period_sum = 0;
 			decimal volume_sum = 0;
-			for (int i = 0; i < Length; i++)
+			for (int i = 0; i < (int)Inputs[Length]; i++)
 			{
 				mfv_period_sum += GetMoneyFlowVolume(period - i);
-				volume_sum += DataSource[period - i].Volume;
+				volume_sum += Source[period - i].Volume;
 			}
 
 			if(volume_sum == 0)
@@ -39,12 +41,17 @@ namespace MarketBot.indicators
 
 		public decimal GetMoneyFlowVolume(int period)
 		{
-			OHLCVPeriod pd = DataSource[period];
+			OHLCVPeriod pd = Source[period];
 			if (pd.High - pd.Low == 0)
 				return 0;
 
 			decimal mfm = ((pd.Close - pd.Low) - (pd.High - pd.Close)) / (pd.High - pd.Low);
 			return mfm * pd.Volume;
+		}
+
+		public override string GetName()
+		{
+			return "Chaikin Money Flow";
 		}
 	}
 }

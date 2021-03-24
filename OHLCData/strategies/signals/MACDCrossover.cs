@@ -5,34 +5,29 @@ using System.Text;
 using System.Threading.Tasks;
 using Binance.Net.Interfaces;
 using MarketBot.indicators;
+using MarketBot.interfaces;
 
 namespace MarketBot.strategies.signals
 {
-	public class MACDCrossover : Strategy
+	public class MACDCrossover : EntrySignaler
 	{
-		private EMA TrendLine;
-
 		//Testing
 		private EMA MacdShort;
 		private EMA MacdLong;
 		HList<decimal> MacdEval = new HList<decimal>();
 		HList<decimal> Signal = new HList<decimal>();
 
-		private int Trend_Length;
 		private int Short_Macd_Length;
 		private int Long_Macd_Length;
 		private int Signal_Length;
 
-		public MACDCrossover(SymbolData data, int trend_len, int short_len, int long_len, int signal_len) :
-			//base(data, $"{{0:{{name:\"EMA\",params:\"{trend_len}\"}},1:{{name:\"EMA\",params:\"{short_len}\"}},2:{{name:\"EMA\",params:\"{long_len}\"}}}}")
-			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{trend_len}]}},{{\"name\":\"EMA\", \"inputs\":[{short_len}]}},{{\"name\":\"EMA\", \"inputs\":[{long_len}]}}]}}")
+		public MACDCrossover(SymbolData data, int short_len, int long_len, int signal_len) :
+			base(data, new IIndicator[] {new EMA(data, short_len), new EMA(data, long_len)})
 		{
-			Trend_Length = trend_len;
 			Short_Macd_Length = short_len;
 			Long_Macd_Length = long_len;
 			Signal_Length = signal_len;
 
-			TrendLine = (EMA)FindIndicator("EMA", Trend_Length);
 			MacdShort = (EMA)FindIndicator("EMA", Short_Macd_Length);
 			MacdLong = (EMA)FindIndicator("EMA", Long_Macd_Length);
 
@@ -64,7 +59,7 @@ namespace MarketBot.strategies.signals
 
 		public void CalculateMacd(object sender, EventArgs e)
 		{
-			int size = MacdLong.DataSource.Count;
+			int size = MacdLong.Source.Data.Periods.Count;
 
 			if (size > 0)
 			{
@@ -78,7 +73,7 @@ namespace MarketBot.strategies.signals
 
 		private void FullCalcMacdEval()
 		{
-			for(int i = 0; i < MacdLong.DataSource.Count; i++)
+			for(int i = 0; i < MacdLong.Source.Data.Periods.Count; i++)
 			{
 				MacdEval.Add(MacdShort[i].Item2 - MacdLong[i].Item2);
 			}
@@ -86,23 +81,14 @@ namespace MarketBot.strategies.signals
 
 		public override SignalType StrategyConditions(int old_period, int new_period)
 		{
-			if (new_period < 300)
-				return SignalType.None;
-
-			//Console.WriteLine($"{MacdShort.Equals(MacdLong)}");
-
-
-
-			if (Source.Data[new_period].Low > TrendLine[new_period].Item2 &&
-				MacdEval[new_period] - Signal[new_period] > 0 &&
+			if (MacdEval[new_period] - Signal[new_period] > 0 &&
 				MacdEval[old_period] - Signal[old_period] < 0 &&
 				MacdEval[new_period] < 0)
 			{
 				return SignalType.Long;
 			}
 
-			if (Source.Data[new_period].High < TrendLine[new_period].Item2 &&
-				MacdEval[new_period] - Signal[new_period] < 0 &&
+			if (MacdEval[new_period] - Signal[new_period] < 0 &&
 				MacdEval[old_period] - Signal[old_period] > 0 &&
 				MacdEval[new_period] > 0)
 			{

@@ -14,7 +14,7 @@ namespace MarketBot.tools
 	{
 		public static List<SymbolData> Symbols = new List<SymbolData>();
 		public static Dictionary<Exchanges, Dictionary<string, bool>> TradingPairs = new Dictionary<Exchanges, Dictionary<string, bool>>();
-		public static Dictionary<Exchanges, Dictionary<string, List<Strategy>>> Entry_Strategies = new Dictionary<Exchanges, Dictionary<string, List<Strategy>>>();
+		public static Dictionary<Exchanges, Dictionary<string, List<EntrySignaler>>> Entry_Strategies = new Dictionary<Exchanges, Dictionary<string, List<EntrySignaler>>>();
 		public static Dictionary<Exchanges, Dictionary<string, List<RiskStrategy>>> Risk_Strategies = new Dictionary<Exchanges, Dictionary<string, List<RiskStrategy>>>();
 		public static Dictionary<Exchanges, Wallet> Wallets = new Dictionary<Exchanges, Wallet>();
 		public static Dictionary<Exchanges, List<Position>> Positions = new Dictionary<Exchanges, List<Position>>();
@@ -117,20 +117,20 @@ namespace MarketBot.tools
 
 			if (!Entry_Strategies.ContainsKey(data.Exchange))
 			{
-				Entry_Strategies.Add(data.Exchange, new Dictionary<string, List<Strategy>>());
+				Entry_Strategies.Add(data.Exchange, new Dictionary<string, List<EntrySignaler>>());
 				Risk_Strategies.Add(data.Exchange, new Dictionary<string, List<RiskStrategy>>());
 			}
 
 			if (!Entry_Strategies[data.Exchange].ContainsKey(data.Symbol))
 			{
-				Entry_Strategies[data.Exchange][data.Symbol] = new List<Strategy>();
+				Entry_Strategies[data.Exchange][data.Symbol] = new List<EntrySignaler>();
 				Risk_Strategies[data.Exchange][data.Symbol] = new List<RiskStrategy>();
 			}
 
-			Entry_Strategies[data.Exchange][data.Symbol].Add(new CMFCrossover(data, 200, 21, 30));
-			Entry_Strategies[data.Exchange][data.Symbol].Add(new MACDCrossover(data, 200, 12, 26, 9));
+			Entry_Strategies[data.Exchange][data.Symbol].Add(new CMFCrossover(data, 21, 30));
+			Entry_Strategies[data.Exchange][data.Symbol].Add(new MACDCrossover(data, 12, 26, 9));
 			Risk_Strategies[data.Exchange][data.Symbol].Add(new Swing(data, 2));
-			Risk_Strategies[data.Exchange][data.Symbol].Add(new strategies.position.ATR(data));
+			Risk_Strategies[data.Exchange][data.Symbol].Add(new strategies.position.ATRRisk(data));
 
 			SequentialSymbolDownload(data.Exchange);
 
@@ -179,7 +179,7 @@ namespace MarketBot.tools
 			{
 				foreach(var strat in Entry_Strategies[sym.Exchange][sym.Symbol])
 				{
-					strat.Run(sym.Data.Data.Count - 1, OnEntrySignal);
+					strat.Run(sym.Data.Periods.Count - 1, OnEntrySignal);
 				}
 			}
 		}
@@ -202,7 +202,7 @@ namespace MarketBot.tools
 				}
 			}
 
-			if (symbol.Data[symbol.Data.Data.Count - 1].Low < BTC_Vwap[BTC_Vwap.DataSource.Count - 1])
+			if (symbol.Data[symbol.Data.Periods.Count - 1].Low < BTC_Vwap[BTC_Vwap.Source.Data.Periods.Count - 1])
 			{
 				Console.WriteLine("Ignoring signal");
 				return;

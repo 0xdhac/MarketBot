@@ -6,27 +6,31 @@ using System.Threading.Tasks;
 
 namespace MarketBot.interfaces
 {
-	public interface IRiskStrategy
+	public abstract class BaseStrategy : Expandum
 	{
-		string GetName();
-	}
-
-	public abstract class RiskStrategy : IRiskStrategy
-	{
-		public SymbolData Source = null;
-		public List<KeyValuePair<string, object>> Inputs = new List<KeyValuePair<string, object>>();
 		public List<IIndicator> Indicators = new List<IIndicator>();
+		public SymbolData Source;
 
-		public RiskStrategy(SymbolData data, IndicatorList list = null)
+		public BaseStrategy(SymbolData data, IndicatorList list = null)
 		{
 			Source = data;
 
-			if(list != null)
+			if (list != null)
 			{
 				foreach (var indicator in list)
 				{
 					Indicators.Add(Source.RequireIndicator(indicator.Key, indicator.Value.ToArray()));
 				}
+			}
+		}
+
+		public BaseStrategy(SymbolData data, IIndicator[] list)
+		{
+			Source = data;
+
+			foreach(var indicator in list)
+			{
+				Indicators.Add(indicator);
 			}
 		}
 
@@ -61,7 +65,8 @@ namespace MarketBot.interfaces
 			return null;
 		}
 
-		public dynamic ToExpando()
+		public abstract string GetName();
+		public virtual dynamic ToExpando()
 		{
 			Dictionary<string, object> expando = new Dictionary<string, object>();
 
@@ -75,8 +80,9 @@ namespace MarketBot.interfaces
 			return expando;
 		}
 
-		public abstract decimal GetRiskPrice(int period, SignalType signal);
-
-		public abstract string GetName();
+		public override string ToString()
+		{
+			return GetName();
+		}
 	}
 }

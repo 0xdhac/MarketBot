@@ -8,7 +8,7 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.condition
 {
-	class EMACondition : Condition
+	class EMACondition : ConditionalAddon
 	{
 		private EMA EMA;
 		public EMACondition(SymbolData data, int length) : 
@@ -20,7 +20,7 @@ namespace MarketBot.strategies.condition
 		public override SignalType[] GetAllowedSignals(int period)
 		{
 			List<SignalType> signals = new List<SignalType>();
-			if (period >= EMA.Length + 50)
+			if (period >= (int)EMA.Inputs[0] + 50)
 			{
 				if (Source.Data[period].Close > EMA[period].Item2)
 					signals.Add(SignalType.Long);
@@ -30,6 +30,11 @@ namespace MarketBot.strategies.condition
 			}
 
 			return signals.ToArray();
+		}
+
+		public override string GetName()
+		{
+			return "EMA Condition";
 		}
 	}
 }

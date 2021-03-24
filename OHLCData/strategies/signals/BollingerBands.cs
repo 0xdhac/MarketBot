@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MarketBot.strategies.signals
 {
-	class BollingerBands : Strategy
+	class BollingerBands : EntrySignaler
 	{
 
 		public BollingerBands(SymbolData data) : base(data)

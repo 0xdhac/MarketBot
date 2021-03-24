@@ -13,21 +13,21 @@ namespace MarketBot
 	{
 		public string Name { get; set; }
 		public bool CollectionFailed { get; set; }
-		public HList<OHLCVPeriod> Data { get; set; }
+		public HList<OHLCVPeriod> Periods { get; set; }
 
 		public BinanceOHLCVCollection(string name)
 		{
 			Name = name;
 			CollectionFailed = false;
-			Data = new HList<OHLCVPeriod>();
+			Periods = new HList<OHLCVPeriod>();
 		}
 
 		public OHLCVPeriod this[int index]
 		{
-			get => Data[index];
+			get => Periods[index];
 		}
 
-		public void CollectApiOHLCV(OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_updates, DateTime? start = null)
+		public void CollectApiOHLCV(OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_updates, DateTime? start = null)
 		{
 			KlineInterval klv = ConvertToExchangeInterval(interval);
 
@@ -56,10 +56,10 @@ namespace MarketBot
 						{
 							foreach (var candle in data.Data.Reverse())
 							{
-								Data.Insert(0, ConvertOHLCVPeriod(candle));
+								Periods.Insert(0, ConvertOHLCVPeriod(candle));
 							}
 
-							dt = Data[0].OpenTime.Subtract(new TimeSpan(0, 0, 1));
+							dt = Periods[0].OpenTime.Subtract(new TimeSpan(0, 0, 1));
 						}
 						else
 						{
@@ -77,15 +77,15 @@ namespace MarketBot
 		{
 			if(obj.Data.Final == true)
 			{
-				if(Data.Count == 0 || (obj.Data.OpenTime - Data[Data.Count - 1].OpenTime == ExchangeTasks.GetOHLCVIntervalTimeSpan(ConvertToGeneralInterval(obj.Data.Interval))))
+				if(Periods.Count == 0 || (obj.Data.OpenTime - Periods[Periods.Count - 1].OpenTime == ExchangeTasks.GetOHLCVIntervalTimeSpan(ConvertToGeneralInterval(obj.Data.Interval))))
 				{
-					Data.Add(ConvertOHLCVPeriod(obj.Data));
+					Periods.Add(ConvertOHLCVPeriod(obj.Data));
 				}
 				else
 				{
-					if(Data[Data.Count - 1].OpenTime != obj.Data.OpenTime)
+					if(Periods[Periods.Count - 1].OpenTime != obj.Data.OpenTime)
 					{
-						Program.Log($"Discrepancy in KLines: {Name} {Data[Data.Count - 1].OpenTime} {obj.Data.OpenTime}");
+						Program.Log($"Discrepancy in KLines: {Name} {Periods[Periods.Count - 1].OpenTime} {obj.Data.OpenTime}");
 						CollectionFailed = true;
 					}
 				}

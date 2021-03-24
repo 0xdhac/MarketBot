@@ -7,7 +7,7 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.signals
 {
-	class Break : Strategy
+	class Break : EntrySignaler
 	{
 		private EMA TrendLine;
 		private int Lookback;

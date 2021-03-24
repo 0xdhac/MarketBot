@@ -11,7 +11,7 @@ namespace MarketBot.indicators
 	{
 		int Length;
 
-		public ATR(int length) : base(length)
+		public ATR(SymbolData data, int length) : base(data, length)
 		{
 			Length = length;
 		}
@@ -24,7 +24,7 @@ namespace MarketBot.indicators
 			}
 			else
 			{
-				IndicatorData.Add(new Tuple<bool, decimal>(true, GetATR(DataSource, period, Length)));
+				IndicatorData.Add(new Tuple<bool, decimal>(true, GetATR(Source.Data.Periods, period, (int)Inputs[0])));
 			}
 		}
 
@@ -42,6 +42,11 @@ namespace MarketBot.indicators
 			}
 
 			return sum_tr / length;
+		}
+
+		public override string GetName()
+		{
+			return "Average True Range";
 		}
 	}
 }

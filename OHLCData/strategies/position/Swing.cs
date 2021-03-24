@@ -31,13 +31,13 @@ namespace MarketBot.strategies.position
 
 		public decimal GetPreviousHigh(int period, int length)
 		{
-			decimal high = Source.Data.Data[period].High;
+			decimal high = Source.Data.Periods[period].High;
 
 			for (int i = 1; i < length; i++)
 			{
-				if (high < Source.Data.Data[period - i].High)
+				if (high < Source.Data.Periods[period - i].High)
 				{
-					high = Source.Data.Data[period - i].High;
+					high = Source.Data.Periods[period - i].High;
 				}
 			}
 
@@ -46,13 +46,13 @@ namespace MarketBot.strategies.position
 
 		public decimal GetPreviousLow(int period, int length)
 		{
-			decimal low = Source.Data.Data[period].Low;
+			decimal low = Source.Data.Periods[period].Low;
 
 			for (int i = 1; i < length; i++)
 			{
-				if (low > Source.Data.Data[period - i].Low)
+				if (low > Source.Data.Periods[period - i].Low)
 				{
-					low = Source.Data.Data[period - i].Low;
+					low = Source.Data.Periods[period - i].Low;
 				}
 			}
 

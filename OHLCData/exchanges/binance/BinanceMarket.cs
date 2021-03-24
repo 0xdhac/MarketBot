@@ -91,7 +91,7 @@ namespace MarketBot.exchanges.binance
 			return true;
 		}
 
-		public static List<string> GetTradingPairs(string symbol_regex)
+		public static List<string> GetTradingPairs(string symbol_regex, bool ignore_blacklist = false)
 		{
 			using (var client = new BinanceClient())
 			{
@@ -105,7 +105,7 @@ namespace MarketBot.exchanges.binance
 					if (r.IsMatch(symbol.Name) &&
 						symbol.Permissions.Contains(AccountType.Spot) &&
 						symbol.Status == SymbolStatus.Trading &&
-						!Blacklist.IsBlacklisted(Exchanges.Binance, symbol.Name))
+						(!Blacklist.IsBlacklisted(Exchanges.Binance, symbol.Name) || ignore_blacklist == true))
 					{
 						output.Add(symbol.Name);
 					}

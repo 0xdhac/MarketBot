@@ -220,7 +220,7 @@ namespace MarketBot
 			}
 		}
 
-		public static IExchangeOHLCVCollection CollectOHLCV(Exchanges ex, string symbol, OHLCVInterval interval, int periods, OHLCVCollectionCompletedCallback callback, bool screener_update, DateTime? start = null)
+		public static IExchangeOHLCVCollection CollectOHLCV(Exchanges ex, string symbol, OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_update, DateTime? start = null)
 		{
 			switch (ex)
 			{

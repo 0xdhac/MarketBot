@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace MarketBot.strategies.signals
 {
-	class AbsoluteStrengthHistogram : Strategy
+	class AbsoluteStrengthHistogram : EntrySignaler
 	{
 		public AbsoluteStrengthHistogram(SymbolData data) : base(data)
 		{

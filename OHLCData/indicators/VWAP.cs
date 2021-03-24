@@ -8,11 +8,15 @@ using MarketBot.interfaces;
 namespace MarketBot.indicators
 {
 	public class VWAP : Indicator<Tuple<decimal, decimal, decimal>>
-	{/*if outside of standard deviation band(2) then no entry
-if outside of sd band(.2-.5) then entry
-if above 9period ema, only long
-if below 9period ema, only short*/
-		public VWAP() : base() { }
+	{	
+		/*
+		 * if outside of standard deviation band(2) then no entry
+		 * if outside of sd band(.2-.5) then entry
+		 * if above 9period ema, only long
+		 * if below 9period ema, only short
+		 */
+
+		public VWAP(SymbolData data) : base(data) { }
 
 		public new decimal this[int index]
 		{
@@ -24,12 +28,12 @@ if below 9period ema, only short*/
 			decimal cumulative_price = 0;
 			decimal cumulative_volume = 0;
 
-			decimal current_typical_price = ((DataSource[period].High + DataSource[period].Low + DataSource[period].Close) / (decimal)3.0) * DataSource[period].Volume;
-			decimal current_volume = DataSource[period].Volume;
+			decimal current_typical_price = ((Source[period].High + Source[period].Low + Source[period].Close) / (decimal)3.0) * Source[period].Volume;
+			decimal current_volume = Source[period].Volume;
 
 			if (period != 0)
 			{
-				if(DataSource[period - 1].OpenTime.Day != DataSource[period].OpenTime.Day)
+				if(Source[period - 1].OpenTime.Day != Source[period].OpenTime.Day)
 				{
 					cumulative_price = current_typical_price;
 					cumulative_volume = current_volume;
@@ -55,6 +59,11 @@ if below 9period ema, only short*/
 		{
 			// Typical price is the average of high, low, and close for length of period
 			return 0;
+		}
+
+		public override string GetName()
+		{
+			return "Volume Weighted Average Price";
 		}
 	}
 }

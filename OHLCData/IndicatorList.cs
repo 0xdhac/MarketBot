@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using MarketBot.interfaces;
 
 namespace MarketBot
 {
@@ -20,7 +21,7 @@ namespace MarketBot
 			Indicators = indicators;
 		}
 
-		public IndicatorList(object[,] list)
+		public IndicatorList(IIndicator[] list)
 		{
 
 		}

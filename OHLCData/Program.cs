@@ -19,6 +19,7 @@ using MarketBot.interfaces;
 using NLog;
 using MarketBot.strategies.condition;
 using MarketBot.strategies.signals;
+using Newtonsoft.Json;
 
 namespace MarketBot
 {
@@ -83,16 +84,16 @@ namespace MarketBot
 			Commands.Execute("help");
 			Console.WriteLine("");
 
-			SymbolData s = new SymbolData(Exchanges.Binance, OHLCVInterval.ThirtyMinute, "BTCUSDT", 1000, TestDeleteLater, false);
+			//SymbolData s = new SymbolData(Exchanges.Binance, OHLCVInterval.ThirtyMinute, "BTCUSDT", 1000, TestDeleteLater, false);
 
 			//new Replay(Exchanges.Binance, "SCUSDT", OHLCVInterval.ThirtyMinute, 100000, DateTime.UtcNow);
-			//new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.ThirtyMinute, 0, null);
-			//BinanceAnalyzer.Run("USDT$", OHLCVInterval.ThirtyMinute);
+			//new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.FifteenMinute, 0, null);
+
+			TupleList a = new TupleList("bool", "int", "decimal", "decimal");
+			//BinanceAnalyzer.Run("USDT$", OHLCVInterval.FifteenMinute);
 
 			while (true)
 			{
-				//Console.Write("> ");
-				//Console.SetCursorPosition(2, Console.CursorTop);
 				string command = Console.ReadLine();
 
 				if (!Commands.Execute(command))
@@ -104,9 +105,12 @@ namespace MarketBot
 
 		private static void TestDeleteLater(SymbolData data)
 		{
-			ThreelineStrike t = new ThreelineStrike(data, 10);
-			t.Conditions.Add(new EMACondition(data, 200));
-			t.ToExpando();
+			EntrySignaler s = new ThreelineStrike(data);
+			s.Add(new EMACondition(data, 200));
+			s.Add(new RSICondition(data, false, 14));
+
+			Console.Write(JsonConvert.SerializeObject(s.ToExpando()));
+			//RSI rsi = new RSI()
 		}
 
 		private static void HelpCommand(string[] args)

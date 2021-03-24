@@ -10,16 +10,13 @@ namespace MarketBot.indicators
 {
 	public class EMA : Indicator<Tuple<bool, decimal>>
 	{
-		public int Length;
-
-		public EMA(int length) : base(length)
+		public EMA(SymbolData data, int length) : base(data, length)
 		{
-			Length = length;
 		}
 
 		public override void Calculate(int period)
 		{
-			if (period - Length < 0)
+			if (period - (int)Inputs[0] < 0)
 			{
 				IndicatorData.Add(new Tuple<bool, decimal>(false, 0));
 			}
@@ -30,21 +27,21 @@ namespace MarketBot.indicators
 				{
 					decimal sum = 0;
 
-					for (int i = period; i > period - Length; i--)
+					for (int i = period; i > period - (int)Inputs[0]; i--)
 					{
-						sum += DataSource[i].Close;
+						sum += Source[i].Close;
 					}
 
-					ema_yesterday = SMA.GetSMA(sum, Length);
+					ema_yesterday = SMA.GetSMA(sum, (int)Inputs[0]);
 				}
 				else
 				{
 					ema_yesterday = IndicatorData[period - 1].Item2;
 				}
 
-				decimal weight = (decimal)2.0 / (Length + (decimal)1.0);
+				decimal weight = (decimal)2.0 / ((int)Inputs[0] + (decimal)1.0);
 
-				decimal ema_today = DataSource[period].Close * weight + ema_yesterday * (1 - weight);
+				decimal ema_today = Source[period].Close * weight + ema_yesterday * (1 - weight);
 
 				IndicatorData.Add(new Tuple<bool, decimal>(true, ema_today));
 			}
@@ -54,6 +51,11 @@ namespace MarketBot.indicators
 		{
 			decimal weight = (decimal)2.0 / (length + (decimal)1.0);
 			return (current_value * weight) + (previous_ema * (1 - weight));
+		}
+
+		public override string GetName()
+		{
+			return "Exponential Moving Average";
 		}
 	}
 }

@@ -44,23 +44,20 @@ namespace MarketBot
 
 			foreach (var file in files)
 			{
-				CSVToOHLCData.Convert(file, Data.Data, method);
+				CSVToOHLCData.Convert(file, Data.Periods, method);
 			}
 			
-			Periods = Data.Data.Count;
+			Periods = Data.Periods.Count;
 			SymbolDataIsLoaded = true;
 			symbol_loaded_callback(this);
 		}
 
+		public OHLCVPeriod this[int index] { get => Data.Periods[index]; }
+
 		public void CollectionCallback(IExchangeOHLCVCollection data)
 		{
-			Data.Data.OnAdd_Post += PeriodClosedCallback;
+			Data.Periods.OnAdd_Post += PeriodClosedCallback;
 			SymbolDataIsLoaded = true;
-
-			foreach(var indicator in Indicators)
-			{
-				indicator.AttachSource(data);
-			}
 
 			if(!Screening)
 				Save();
@@ -79,11 +76,16 @@ namespace MarketBot
 		public void ApplyIndicator(IIndicator indicator)
 		{
 			Indicators.Add(indicator);
+		}
 
-			if(SymbolDataIsLoaded == true)
-			{
-				indicator.AttachSource(Data);
-			}
+		public void DeleteIndicators()
+		{
+			Indicators.RemoveRange(0, Indicators.Count);
+		}
+
+		public void DeleteIndicators(HList<IIndicator> list)
+		{
+			Indicators.RemoveAll((i) => list.Contains(i));
 		}
 
 		public IIndicator GetIndicatorByName(string indicator_name)
@@ -127,14 +129,20 @@ namespace MarketBot
 				}
 			}
 
-			IIndicator new_indicator_instance = (IIndicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), inputs);
+			List<object> input_list = new List<object>();
+			input_list.Add(this);
+			foreach(var input in inputs)
+			{
+				input_list.Add(input);
+			}
+			IIndicator new_indicator_instance = (IIndicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), input_list.ToArray());
 			ApplyIndicator(new_indicator_instance);
 			return new_indicator_instance;
 		}
 
 		public void Save()
 		{
-			OHLCDataToCSV.Convert(Data.Data, $"./{Symbol}_{Interval}.csv");
+			OHLCDataToCSV.Convert(Data.Periods, $"./{Symbol}_{Interval}.csv");
 		}
 	}
 }

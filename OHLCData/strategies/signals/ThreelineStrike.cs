@@ -8,38 +8,26 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.signals
 {
-	public class ThreelineStrike : Strategy
+	public class ThreelineStrike : EntrySignaler
 	{
-		private int EmaLength;
-		private EMA EMA;
-
-		public ThreelineStrike(SymbolData data, int ema_length) :
-			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{ema_length}]}}]}}")
-		{
-			EmaLength = ema_length;
-
-			EMA = (EMA)FindIndicator("EMA", EmaLength);
-		}
+		public ThreelineStrike(SymbolData data) :base(data){}
 
 		public override SignalType StrategyConditions(int old_period, int new_period)
 		{
-			if (new_period < 300)
+			if (new_period < 3)
 				return SignalType.None;
 			// 3 red candles followed by a green candle larger candle that closes above the oldest red candle
 
-
-			HList<OHLCVPeriod> kline = Source.Data.Data;
+			HList<OHLCVPeriod> kline = Source.Data.Periods;
 			decimal candle1 = kline[new_period - 3].Close - kline[new_period - 3].Open; // Negative means red
 			decimal candle2 = kline[new_period - 2].Close - kline[new_period - 2].Open;
 			decimal candle3 = kline[new_period - 1].Close - kline[new_period - 1].Open;
 
-			if (kline[new_period].Low > EMA[new_period].Item2 &&
-				candle1 < 0 && candle2 < 0 && candle3 < 0 &&
+			if (candle1 < 0 && candle2 < 0 && candle3 < 0 &&
 				kline[new_period].Close > kline[new_period - 3].Open)
 				return SignalType.Long;
 
-			if (kline[new_period].High < EMA[new_period].Item2 &&
-				candle1 > 0 && candle2 > 0 && candle3 > 0 &&
+			if (candle1 > 0 && candle2 > 0 && candle3 > 0 &&
 				kline[new_period].Close < kline[new_period - 3].Open)
 				return SignalType.Short;
 
@@ -48,7 +36,7 @@ namespace MarketBot.strategies.signals
 
 		public override string GetName()
 		{
-			return "Three Line Strike";
+			return "Candles (Three line strike)";
 		}
 	}
 }

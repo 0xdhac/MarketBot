@@ -169,6 +169,7 @@
     <Compile Include="Blacklist.cs" />
     <Compile Include="Commands.cs" />
     <Compile Include="CSVToOHLCData.cs" />
+    <Compile Include="Expandum.cs" />
     <Compile Include="HList.cs" />
     <Compile Include="exchanges\binance\BinanceMarket.cs" />
     <Compile Include="exchanges\binance\BinanceOHLCVCollection.cs" />
@@ -178,6 +179,7 @@
     <Compile Include="exchanges\binance\BinanceWallet.cs" />
     <Compile Include="exchanges\Exchanges.cs" />
     <Compile Include="IndicatorList.cs" />
+    <Compile Include="indicators\ADX.cs" />
     <Compile Include="indicators\ATR.cs" />
     <Compile Include="indicators\BollingerBands.cs" />
     <Compile Include="indicators\CMF.cs" />
@@ -189,17 +191,20 @@
     <Compile Include="indicators\Stochastic.cs" />
     <Compile Include="indicators\TR.cs" />
     <Compile Include="indicators\VWAP.cs" />
-    <Compile Include="interfaces\Condition.cs" />
+    <Compile Include="interfaces\ConditionalAddon.cs" />
     <Compile Include="interfaces\IExchangeOHLCVCollection.cs" />
     <Compile Include="interfaces\IIndicators.cs" />
-    <Compile Include="interfaces\IRiskStrategy.cs" />
-    <Compile Include="interfaces\IWallet.cs" />
+    <Compile Include="interfaces\RiskStrategy.cs" />
+    <Compile Include="interfaces\Wallet.cs" />
+    <Compile Include="interfaces\BaseStrategy.cs" />
+    <Compile Include="interfaces\Scheme.cs" />
     <Compile Include="strategies\condition\ADXCondition.cs" />
     <Compile Include="strategies\condition\EMAOverEMACondition.cs" />
     <Compile Include="strategies\condition\EMACondition.cs" />
     <Compile Include="strategies\condition\RSICondition.cs" />
     <Compile Include="strategies\condition\VWAPCondition.cs" />
-    <Compile Include="strategies\position\ATR.cs" />
+    <Compile Include="strategies\position\ATRRisk.cs" />
+    <Compile Include="strategies\signals\DMCrossover.cs" />
     <Compile Include="strategies\signals\Star.cs" />
     <Compile Include="strategies\signals\CMFCrossover.cs" />
     <Compile Include="strategies\position\Swing.cs" />
@@ -211,13 +216,13 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="strategies\position\DonchianChannels.cs" />
     <Compile Include="strategies\position\ParabolicSAR.cs" />
-    <Compile Include="strategies\signals\Pair.cs" />
     <Compile Include="strategies\signals\ThreelineStrike.cs" />
     <Compile Include="tools\Analyzer.cs" />
     <Compile Include="tools\RealtimeBot.cs" />
     <Compile Include="tools\Replay.cs" />
-    <Compile Include="interfaces\IEntryStrategy.cs" />
+    <Compile Include="interfaces\EntrySignaler.cs" />
     <Compile Include="SymbolData.cs" />
+    <Compile Include="TupleList.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

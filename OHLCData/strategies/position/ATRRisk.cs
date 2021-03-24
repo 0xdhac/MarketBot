@@ -4,12 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using MarketBot.interfaces;
+using MarketBot.indicators;
 
 namespace MarketBot.strategies.position
 {
-	class ATR : RiskStrategy
+	class ATRRisk : RiskStrategy
 	{
-		public indicators.ATR ATR_Data;
+		public ATR ATR_Data;
 
 		public override decimal GetRiskPrice(int period, SignalType signal)
 		{
@@ -24,21 +25,21 @@ namespace MarketBot.strategies.position
 			return 0;
 		}
 
-		public ATR(SymbolData data) :
+		public ATRRisk(SymbolData data) :
 			base(data, $"{{\"indicators\":[{{\"name\":\"ATR\", \"inputs\":[14]}}]}}")
 		{
-			ATR_Data = (indicators.ATR)FindIndicator("ATR", 14);
+			ATR_Data = (ATR)FindIndicator("ATR", 14);
 		}
 
 		public decimal GetPreviousHigh(int period, int length)
 		{
-			decimal high = Source.Data.Data[period].High;
+			decimal high = Source.Data.Periods[period].High;
 
 			for(int i = 1; i < length; i++)
 			{
-				if(high < Source.Data.Data[period - i].High)
+				if(high < Source.Data.Periods[period - i].High)
 				{
-					high = Source.Data.Data[period - i].High;
+					high = Source.Data.Periods[period - i].High;
 				}
 			}
 
@@ -47,13 +48,13 @@ namespace MarketBot.strategies.position
 
 		public decimal GetPreviousLow(int period, int length)
 		{
-			decimal low = Source.Data.Data[period].Low;
+			decimal low = Source.Data.Periods[period].Low;
 
 			for (int i = 1; i < length; i++)
 			{
-				if (low > Source.Data.Data[period - i].Low)
+				if (low > Source.Data.Periods[period - i].Low)
 				{
-					low = Source.Data.Data[period - i].Low;
+					low = Source.Data.Periods[period - i].Low;
 				}
 			}
 

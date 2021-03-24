@@ -11,9 +11,14 @@ namespace MarketBot.indicators
 	{
 		public int Length;
 
-		public SMA(int length) : base(length)
+		public SMA(SymbolData data, int length) : base(data, length)
 		{
 			Length = length;
+		}
+
+		public new decimal this[int index]
+		{
+			get => IndicatorData[index].Item2;
 		}
 
 		public override void Calculate(int period)
@@ -29,7 +34,7 @@ namespace MarketBot.indicators
 				
 				for (int i = period; i > period - Length; i--)
 				{
-					sum += DataSource[i].Close;
+					sum += Source[i].Close;
 				}
 
 				decimal sma = sum / Length;
@@ -40,6 +45,11 @@ namespace MarketBot.indicators
 		public static decimal GetSMA(decimal sum, int length)
 		{
 			return sum / length;
+		}
+
+		public override string GetName()
+		{
+			return "Simple Moving Average";
 		}
 	}
 }

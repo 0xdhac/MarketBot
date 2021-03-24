@@ -16,7 +16,7 @@ namespace MarketBot.indicators
 		List<Tuple<bool, decimal>> ShortEMA = new List<Tuple<bool, decimal>>();
 		List<Tuple<bool, decimal>> LongEMA = new List<Tuple<bool, decimal>>();
 
-		public MACD(int short_ema, int long_ema, int signal_ema) : base(short_ema, long_ema, signal_ema)
+		public MACD(SymbolData data, int short_ema, int long_ema, int signal_ema) : base(data, short_ema, long_ema, signal_ema)
 		{
 			Short_EMA_Length = short_ema;
 			Long_EMA_Length = long_ema;
@@ -41,7 +41,7 @@ namespace MarketBot.indicators
 
 					for (int i = period; i > period - Short_EMA_Length; i--)
 					{
-						sum += DataSource[i].Close;
+						sum += Source[i].Close;
 					}
 
 					ema_yesterday = SMA.GetSMA(sum, Short_EMA_Length);
@@ -53,7 +53,7 @@ namespace MarketBot.indicators
 
 				decimal weight = (decimal)2.0 / (Short_EMA_Length + (decimal)1.0);
 
-				decimal short_ema = DataSource[period].Close * weight + ema_yesterday * (1 - weight);
+				decimal short_ema = Source[period].Close * weight + ema_yesterday * (1 - weight);
 
 				ShortEMA.Add(new Tuple<bool, decimal>(true, short_ema));
 			}
@@ -72,7 +72,7 @@ namespace MarketBot.indicators
 
 					for (int i = period; i > period - Long_EMA_Length; i--)
 					{
-						sum += DataSource[i].Close;
+						sum += Source[i].Close;
 					}
 
 					ema_yesterday = SMA.GetSMA(sum, Long_EMA_Length);
@@ -84,7 +84,7 @@ namespace MarketBot.indicators
 
 				decimal weight = (decimal)2.0 / (Long_EMA_Length + (decimal)1.0);
 
-				decimal long_ema = DataSource[period].Close * weight + ema_yesterday * (1 - weight);
+				decimal long_ema = Source[period].Close * weight + ema_yesterday * (1 - weight);
 
 				LongEMA.Add(new Tuple<bool, decimal>(true, long_ema));
 			}
@@ -127,6 +127,11 @@ namespace MarketBot.indicators
 			}
 
 			IndicatorData.Add(new Tuple<bool, decimal, bool, decimal>(macd_exists, macd_value, signal_exists, signal_value));
+		}
+
+		public override string GetName()
+		{
+			return "Moving Average Convergence Divergence";
 		}
 	}
 }

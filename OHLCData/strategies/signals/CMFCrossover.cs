@@ -7,81 +7,76 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.signals
 {
-	public class CMFCrossover : Strategy
+	public class CMFCrossover : EntrySignaler
 	{
 		public CMF Cmf;
-		public EMA EMA;
 
 		public HList<decimal> Signal = new HList<decimal>();
 
-		private int Trend_Length;
-		private int Short_Cmf_Length;
+		private int Cmf_Length;
 		private int Signal_Length;
 
-		public CMFCrossover(SymbolData data, int trend_len, int cmf_len, int signal_len) : 
-			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{trend_len}]}},{{\"name\":\"CMF\", \"inputs\":[{cmf_len}]}}]}}")
+		public CMFCrossover(SymbolData data, int cmf_len, int signal_len) : 
+			base(data, $"{{\"indicators\":[{{\"name\":\"CMF\", \"inputs\":[{cmf_len}]}}]}}")
 		{
-			Trend_Length = trend_len;
-			Short_Cmf_Length = cmf_len;
+			Cmf_Length = cmf_len;
 			Signal_Length = signal_len;
 
-			Cmf = (CMF)FindIndicator("CMF", Short_Cmf_Length);
-			EMA = (EMA)FindIndicator("EMA", Trend_Length);
+			Cmf = (CMF)FindIndicator("CMF", Cmf_Length);
 
 			FullCalcSignal();
 			Cmf.IndicatorData.OnAdd += CalculateSignal;
 		}
 
-
 		private void CalculateSignal(object sender, EventArgs e)
 		{
-			int size = Cmf.DataSource.Count;
+			int size = Cmf.Source.Data.Periods.Count;
 
-			if ((size - 1) - (Signal_Length + Short_Cmf_Length) < 0)
+			if ((size - 1) - (Signal_Length + Cmf_Length) < 0)
 			{
 				Signal.Add(0);
 			}
 			else
 			{
-				if (size - 1 == (Signal_Length + Short_Cmf_Length))
+				if (size - 1 == (Signal_Length + Cmf_Length))
 				{
 					decimal sum = 0;
 					for (int i = 0; i < Signal_Length; i++)
 					{
-						sum += Cmf[size - 1 - i].Item2;
+						sum += Cmf[size - 1 - i];
 					}
 					Signal.Add(SMA.GetSMA(sum, Signal_Length));
 				}
 				else
 				{
-					Signal.Add(EMA.GetEMA(Cmf[size - 1].Item2, Signal_Length, Signal[size - 2]));
+					Signal.Add(EMA.GetEMA(Cmf[size - 1], Signal_Length, Signal[size - 2]));
 				}
 			}
 		}
 
 		private void FullCalcSignal()
 		{
-			for (int i = 0; i < Cmf.DataSource.Count; i++)
+			for (int i = 0; i < Cmf.Source.Data.Periods.Count; i++)
 			{
-				if (i - (Short_Cmf_Length + Signal_Length) < 0) //i - 1 - 20 < 0
+				if (i - (Cmf_Length + Signal_Length) < 0) //i - 1 - 20 < 0
 				{
 					Signal.Add(0);
 				}
 				else
 				{
-					if (i == Short_Cmf_Length + Signal_Length)
+					if (i == Cmf_Length + Signal_Length)
 					{
 						decimal sum = 0;
 						for(int j = 0; j < Signal_Length; j++)
 						{
-							sum += Cmf[i - j].Item2;
+							sum += Cmf[i - j];
 						}
-						//CmfShort.IndicatorData.GetRange(i - 2 - Signal_Length, Signal_Length).ConvertAll(s => s.Item2);
+
 						Signal.Add(SMA.GetSMA(sum, Signal_Length));
 					}
 					else
 					{
-						Signal.Add(EMA.GetEMA(Cmf[i].Item2, Signal_Length, Signal[i - 1]));
+						Signal.Add(EMA.GetEMA(Cmf[i], Signal_Length, Signal[i - 1]));
 					}
 				}
 			}
@@ -89,22 +84,18 @@ namespace MarketBot.strategies.signals
 
 		public override SignalType StrategyConditions(int old_period, int new_period)
 		{
-			if (new_period < 300)
-				return SignalType.None;
-
-			if (Source.Data[new_period].Low > EMA[new_period].Item2 &&
-				Cmf[new_period].Item2 < Signal[new_period] &&
-				Cmf[old_period].Item2 > Signal[old_period] &&
-				Cmf[new_period].Item2 < 0) // AFTER A FEW TESTS, IT WAS UNANIMOUSLY BETTER FOR THE SIGNAL TO BE ON THE OPPOSITE SIDE OF THE ZERO LINE
+			//Console.WriteLine($"{Cmf.IndicatorData[new_period].Item2} {Signal[new_period]}");
+			if (Cmf[new_period] < Signal[new_period] &&
+				Cmf[old_period] > Signal[old_period] &&
+				Cmf[new_period] < 0) // AFTER A FEW TESTS, IT WAS UNANIMOUSLY BETTER FOR THE SIGNAL TO BE ON THE OPPOSITE SIDE OF THE ZERO LINE
 			{
 				return SignalType.Long;
 			}
 			
 
-			if (Source.Data[new_period].High < EMA[new_period].Item2 &&
-				Cmf[new_period].Item2 > Signal[new_period] &&
-				Cmf[old_period].Item2 < Signal[old_period] &&
-				Cmf[new_period].Item2 > 0)
+			if (Cmf[new_period] > Signal[new_period] &&
+				Cmf[old_period] < Signal[old_period] &&
+				Cmf[new_period] > 0)
 			{
 				return SignalType.Short;
 			}

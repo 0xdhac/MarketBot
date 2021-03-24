@@ -12,20 +12,25 @@ namespace MarketBot.interfaces
 	public interface IIndicator
 	{
 		List<object> Inputs { get; set; }
-		void AttachSource(IExchangeOHLCVCollection source);
 		void FullCalculate();
 	}
-	public abstract class Indicator<T>: IIndicator
+
+	public abstract class Indicator<T>: IIndicator, Expandum
 	{
 		public List<object> Inputs { get; set; }
 		public HList<T> IndicatorData { get; set; }
-		public HList<OHLCVPeriod> DataSource;
+		public SymbolData Source;
 
-		public Indicator(params object[] inputs)
+		public Indicator(SymbolData source, params object[] inputs)
 		{
 			Inputs = inputs.ToList();
 
 			IndicatorData = new HList<T>();
+
+			Source = source;
+			OnSourceAttached();
+			Source.Data.Periods.OnAdd += PeriodAdded;
+			FullCalculate();
 		}
 
 		public T this[int index]
@@ -33,18 +38,13 @@ namespace MarketBot.interfaces
 			get => IndicatorData[index];
 		}
 
-		public virtual void AttachSource(IExchangeOHLCVCollection source)
-		{
-			DataSource = source.Data;
-			DataSource.OnAdd += PeriodAdded;
-			FullCalculate();
-		}
-
 		public abstract void Calculate(int period);
+
+		public virtual void OnSourceAttached() { }
 
 		public virtual void FullCalculate()
 		{
-			for(int period = 0; period < DataSource.Count; period++)
+			for(int period = 0; period < Source.Data.Periods.Count; period++)
 			{
 				Calculate(period);
 			}
@@ -52,7 +52,23 @@ namespace MarketBot.interfaces
 
 		public virtual void PeriodAdded(object sender, EventArgs e)
 		{
-			Calculate(DataSource.Count - 1);
+			Calculate(Source.Data.Periods.Count - 1);
+		}
+
+		public virtual dynamic ToExpando()
+		{
+			Dictionary<string, object> expando = new Dictionary<string, object>();
+
+			expando.Add(GetType().Name, Inputs.ToArray());
+
+			return expando;
+		}
+
+		public abstract string GetName();
+
+		public override string ToString()
+		{
+			return GetName();
 		}
 	}
 }
