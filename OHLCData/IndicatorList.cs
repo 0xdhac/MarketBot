@@ -21,7 +21,7 @@ namespace MarketBot
 			Indicators = indicators;
 		}
 
-		public IndicatorList(IIndicator[] list)
+		public IndicatorList(Indicator[] list)
 		{
 
 		}

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,13 +8,18 @@ using MarketBot.interfaces;
 
 namespace MarketBot.indicators
 {
-	class BollingerBands : Indicator<Tuple<bool, decimal, decimal>>
+	class BollingerBands : Indicator
 	{
 		public BollingerBands(SymbolData data) : base(data) { }
 
-		public override void Calculate(int period)
+		public override void BuildDataTable()
 		{
+			throw new NotImplementedException();
+		}
 
+		public override DataRow Calculate(int period)
+		{
+			throw new NotImplementedException();
 		}
 
 		public override string GetName()

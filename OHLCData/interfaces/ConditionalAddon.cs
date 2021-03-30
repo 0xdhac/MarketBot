@@ -15,6 +15,16 @@ namespace MarketBot.interfaces
 			
 		}
 
+		public ConditionalAddon(SymbolData data, Indicator[] list = null) : base(data, list)
+		{
+
+		}
+
+		public ConditionalAddon(SymbolData data, Indicator indicator = null) : base(data, indicator)
+		{
+
+		}
+
 		public abstract SignalType[] GetAllowedSignals(int period);
 
 		public bool Allows(int period, SignalType signal)

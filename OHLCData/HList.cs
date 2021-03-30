@@ -10,6 +10,7 @@ namespace MarketBot
 	{
 		public event EventHandler OnAdd;
 		public event EventHandler OnAdd_Post;
+		public event EventHandler OnAdd_PrePost;
 
 		public event EventHandler OnRemoveAt;
 		public event EventHandler OnRemoveAt_Post;
@@ -25,6 +26,11 @@ namespace MarketBot
 			}
 
 			base.Add(item);
+
+			if(null != OnAdd_PrePost)
+			{
+				OnAdd_PrePost(this, null);
+			}
 
 			if(null != OnAdd_Post)
 			{

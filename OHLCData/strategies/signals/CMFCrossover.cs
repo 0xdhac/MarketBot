@@ -23,9 +23,8 @@ namespace MarketBot.strategies.signals
 			Signal_Length = signal_len;
 
 			Cmf = (CMF)FindIndicator("CMF", Cmf_Length);
-
+			Cmf.OnCalculate += CalculateSignal;
 			FullCalcSignal();
-			Cmf.IndicatorData.OnAdd += CalculateSignal;
 		}
 
 		private void CalculateSignal(object sender, EventArgs e)

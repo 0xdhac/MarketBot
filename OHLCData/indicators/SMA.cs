@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,7 +8,7 @@ using MarketBot.interfaces;
 
 namespace MarketBot.indicators
 {
-	class SMA : Indicator<Tuple<bool, decimal>>
+	class SMA : Indicator
 	{
 		public int Length;
 
@@ -16,17 +17,11 @@ namespace MarketBot.indicators
 			Length = length;
 		}
 
-		public new decimal this[int index]
-		{
-			get => IndicatorData[index].Item2;
-		}
-
-		public override void Calculate(int period)
+		public override DataRow Calculate(int period)
 		{
 			if(period + 1 < Length)
 			{
-				Tuple<bool, decimal> idx = new Tuple<bool, decimal>(false, 0);
-				IndicatorData.Add(idx);
+				return Data.Rows.Add(false, 0);
 			}
 			else
 			{
@@ -38,7 +33,7 @@ namespace MarketBot.indicators
 				}
 
 				decimal sma = sum / Length;
-				IndicatorData.Add(new Tuple<bool, decimal>(true, sma));
+				return Data.Rows.Add(true, sma);
 			}
 		}
 
@@ -47,9 +42,20 @@ namespace MarketBot.indicators
 			return sum / length;
 		}
 
+		public static decimal GetSMA(List<decimal> values)
+		{
+			return values.Sum() / values.Count;
+		}
+
 		public override string GetName()
 		{
 			return "Simple Moving Average";
+		}
+
+		public override void BuildDataTable()
+		{
+			Data.Columns.Add("calculated", typeof(bool));
+			Data.Columns.Add("value", typeof(decimal));
 		}
 	}
 }

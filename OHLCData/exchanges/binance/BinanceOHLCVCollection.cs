@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Binance.Net.Enums;
 using Binance.Net;
 using Binance.Net.Interfaces;
+using Binance.Net.Objects.Spot;
 
 namespace MarketBot
 {
@@ -36,7 +37,7 @@ namespace MarketBot
 				// Subscribe to updates in new information
 				if (screener_updates)
 				{
-					using (var socket_client = new BinanceSocketClient())
+					using (var socket_client = new BinanceSocketClient(new BinanceSocketClientOptions() { AutoReconnect = true, ReconnectInterval = TimeSpan.FromSeconds(5) }))
 					{
 						socket_client.Spot.SubscribeToKlineUpdatesAsync(Name, klv, OnKlineUpdate);
 					}
@@ -45,7 +46,7 @@ namespace MarketBot
 				// Download historical data
 				using (var client = new BinanceClient())
 				{
-					DateTime dt = (start.HasValue) ? start.Value : DateTime.UtcNow - new TimeSpan(0, 1, 0);
+					DateTime dt = (start.HasValue) ? start.Value : DateTime.UtcNow - ExchangeTasks.GetOHLCVIntervalTimeSpan(interval);
 					while (periods > 0)
 					{
 						int limit = (periods >= 1000) ? 1000 : periods;
@@ -59,7 +60,7 @@ namespace MarketBot
 								Periods.Insert(0, ConvertOHLCVPeriod(candle));
 							}
 
-							dt = Periods[0].OpenTime.Subtract(new TimeSpan(0, 0, 1));
+							dt = Periods[0].Date.Subtract(new TimeSpan(0, 0, 1));
 						}
 						else
 						{
@@ -77,18 +78,26 @@ namespace MarketBot
 		{
 			if(obj.Data.Final == true)
 			{
-				if(Periods.Count == 0 || (obj.Data.OpenTime - Periods[Periods.Count - 1].OpenTime == ExchangeTasks.GetOHLCVIntervalTimeSpan(ConvertToGeneralInterval(obj.Data.Interval))))
+				if(Periods.Count == 0 || (obj.Data.OpenTime - Periods[Periods.Count - 1].Date == ExchangeTasks.GetOHLCVIntervalTimeSpan(ConvertToGeneralInterval(obj.Data.Interval))))
 				{
 					Periods.Add(ConvertOHLCVPeriod(obj.Data));
 				}
 				else
 				{
-					if(Periods[Periods.Count - 1].OpenTime != obj.Data.OpenTime)
+					if(Periods[Periods.Count - 1].Date != obj.Data.OpenTime)
 					{
-						Program.Log($"Discrepancy in KLines: {Name} {Periods[Periods.Count - 1].OpenTime} {obj.Data.OpenTime}");
+						Program.Log($"Discrepancy in KLines: {Name} {Periods[Periods.Count - 1].Date} {obj.Data.OpenTime}");
 						CollectionFailed = true;
 					}
+					else
+					{
+						Program.Log($"{Name}: {obj.Data.OpenTime - Periods[Periods.Count - 1].Date}");
+					}
 				}
+			}
+			else
+			{
+				//Console.WriteLine($"{Name}: Test");
 			}
 		}
 
@@ -180,7 +189,7 @@ namespace MarketBot
 			p.Low = period.Low;
 			p.Close = period.Close;
 			p.Volume = period.BaseVolume;
-			p.OpenTime = period.OpenTime;
+			p.Date = period.OpenTime;
 			p.CloseTime = period.CloseTime;
 			//p.AssetVolume = period.QuoteVolume;
 

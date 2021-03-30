@@ -1,68 +1,34 @@
 ﻿Features to implement:
-- Find historical forex/crypto data to download that has volume in it
-- *VWAP indicator
-- RSI indicator
-- ADX indicator
-- Create a strategy type that can read other symboldatas
-- *Create a RiskStrategy where the trade exits after X amount of periods instead of waiting for a price target to hit
-- Support and Resistance break strategy
-- Candlestick pattern recognition strategy (Evening star, morning star, etc..)
-- Donchian Channels Strategy
-- Bollinger Bands Strategy
-- Try MACD crossover without taking trades on large candles
-- Monte Carlo Randomized Strategy Backtesting
-	- Create as many indicators as I can
-	- Create an indicator that can apply indicators to other indicators. For example, how the MACD signal line works; an EMA of the MACD which is the difference of two EMAs of the price data together.
-- VWAP + 600EMA + William's Alligator
+- Figure out Sharpe Ratio
+- Allow SymbolData to support multiple different timeframes
+- Figure out beta coefficient
 
 -REALTIMEBOT TODO
-- Download all symbol data to hdd
-- Scan all of them in one go
-- Information to learn:
-	- Best entry strategy
-	- Best exit strategy
-	- Best risk/reward ratio
-	- Minimum risk level for the most profit
-	- Maximum risk level for the most profit? Maybe not
-
-Find the most profitable symbol for CMF/MACD
-Go all in every time it gets a signal
--when an oco order expires
-- find out how to well if oco order expires
-find the risk order
-- CREATE STRATEGY: CANDLE CLOSES ABOVE 9 DAY EMA FOR FIRST TIME = LONG, CLOSES UNDER 9 DAY EMA FOR FIRST TIME = SHORT
-- FILL OR KILL LIMIT BUY AFTER X AMOUNT OF SECONDS OF MINUTE CLOSE
-- **ADD VWAP
-- ADD WINRATE COUNTER, MORE INFO IN BINANCESTREAM.CS ORDERUPDATE FUNC
-- **ADD LOGGING SYSTEM
-- MAKE SURE TO ONLY TAKE TRADES IF BetAmount < USDT BALANCE
-	- make wallet update manually when entering a new position, or just refetch the info from the api
-- **MAKE SURE TO CHECK THAT EVERY CANDLE IS EXACTLY ONE INTERVAL FROM THE PREVIOUS ONE TO PREVENT DISCREPENCIES IN INDICATORS
-- WHEN BOT STARTS, CHECK API FOR CURRENT POSITIONS IN CASE OF SITUATIONS WHERE I HAVE TO RESTART THE BOT AND THE MEMORY GETS CLEARED OF ITS POSITION LIST
-- **IF OCO FAILS TO START - MARKET SELL
-- IF OCO FAILS TO SELL AT STOP LOSS - MARKET SELL
-- ADD DUST CONVERSION CRONJOB EVERY 6 HOURS -> BNB -> SELL FOR USDT
-- FIX ANY ERRORS THAT COME UP IN TESTING
-- ADD SUPPORT FOR SHORTING
-- AUTO REPAY SHORTING DEBTS AT START OF BOT AND END OF EVERY TRADE. 
-- AUTO TRANSFER FUNDS BETWEEN CROSS <-> SPOT AS NEEDED
-- TEST CMFCROSSOVER WHEN 50 EMA IS ON CORRECT SIDE OF LINE
 
 
+On order created:
+Insert position object into database with: Symbol, Quantity, Risk, Profit, Status = OrderPlaced
 
-Commands:
-bot 
-	- entry <strategy name> (Example: bot entry CMFPassZero 200 20 20)
-	- exit <strategy name> (Example: bot exit Swing 2)
-	- profit <value> (Example: bot profit 2)
-	- start (Starts the bot)
-	^C = stop
+On order canceled:
 
-screener
-	- blacklist <add:remove> <exchange> <market> <symbol> (Example: "screener blacklist remove binance spot BTCUSDT")
-	- filter <regex pattern> (Default USDT$)
+On oco order created:
+Update position in database to Status = OcoOrderPlaced
 
-backtest
-	- start <exchange> <symbol> <interval> <periods>
+On oco order changed:
 
 
+On socket connection lost:
+Select all positions with type = OrderPlaced
+Create an oco order based on current available quantity
+
+
+Fitness parameters
+- (Average win time / Average loss time): The lower the better
+- (Profitability)
+- Fitness = (Profitability|Sharpe Ratio) / (1 - (Average win time / Average loss time))
+if(Profitability < 1.05)
+	return 0;
+else
+	return (Profitability|Sharpe Ratio) / (Average loss time / Average win time)
+
+Use GeneticSharp and Skender.Stock.Indicators

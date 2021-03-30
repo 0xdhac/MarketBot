@@ -121,7 +121,7 @@ namespace MarketBot
 				{
 					OHLCVPeriod period = new OHLCVPeriod();
 
-					period.OpenTime = new DateTime(1970, 1, 1).AddMilliseconds(double.Parse(record.Field1));
+					period.Date = new DateTime(1970, 1, 1).AddMilliseconds(double.Parse(record.Field1));
 					period.Open = decimal.Parse(record.Field2);
 					period.High = decimal.Parse(record.Field3);
 					period.Low = decimal.Parse(record.Field4);

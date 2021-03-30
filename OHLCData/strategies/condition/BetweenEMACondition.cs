@@ -8,11 +8,11 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.condition
 {
-	class EMAOverEMACondition : ConditionalAddon
+	class BetweenEMACondition : ConditionalAddon
 	{
 		private EMA LongEMA;
 		private EMA ShortEMA;
-		public EMAOverEMACondition(SymbolData data, int long_length, int short_length) :
+		public BetweenEMACondition(SymbolData data, int long_length, int short_length) :
 			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{long_length}]}}, {{\"name\":\"EMA\", \"inputs\":[{short_length}]}}]}}")
 		{
 			if (short_length >= long_length)
@@ -27,12 +27,12 @@ namespace MarketBot.strategies.condition
 			List<SignalType> signals = new List<SignalType>();
 			if (period >= (int)LongEMA.Inputs[0] + 50)
 			{
-				if (Source.Data[period].Low > ShortEMA[period] &&
-					ShortEMA[period] > LongEMA[period])
+				if (Source[period].Low < ShortEMA[period] &&
+					Source[period].Low > LongEMA[period])
 					signals.Add(SignalType.Long);
 
-				if (Source.Data[period].High < ShortEMA[period] &&
-					ShortEMA[period] < LongEMA[period])
+				if (Source[period].High > ShortEMA[period] &&
+					Source[period].High < LongEMA[period])
 					signals.Add(SignalType.Short);
 			}
 
@@ -41,7 +41,7 @@ namespace MarketBot.strategies.condition
 
 		public override string GetName()
 		{
-			return "EMA Over EMA Condition";
+			return "Between EMA Condition";
 		}
 	}
 }

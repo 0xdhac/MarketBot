@@ -27,17 +27,134 @@ namespace MarketBot.tools
 		private static string Account = @"spot";
 		private static string DateRange = @"monthly";
 		private static string DataType = @"klines";
+		private static HList<OHLCVPeriod> Market = null;
 
+		// Analyzer settings
 		private static List<string> Pairs = null;
+		private static OHLCVInterval Interval;
 
-		public static void Run(string pattern, OHLCVInterval interval)
+
+		static decimal total_profit = 0;
+		static decimal total_profitability = 0;
+		static int num_symbols = 0;
+
+		public static void Run(string pattern, OHLCVInterval interval, bool download = true)
 		{
 			Console.WriteLine("Running Analyzer");
 
+			Interval = interval;
 			Pairs = BinanceMarket.GetTradingPairs(pattern, true);
-			DownloadKlines(pattern, interval);
+			if(download)
+				DownloadKlines(pattern, interval);
+
+			RunReplays();
+			//LoadMarket();
+			
 		}
 
+		public static void LoadMarket()
+		{
+			var file = BuildFile("BTCUSDT", OHLCVInterval.ThirtyMinute, DateTime.Now.AddMonths(-1));
+			new SymbolData("BTCUSDT", new string[] { DownloadPath + file + ".csv" }, OHLCVInterval.ThirtyMinute, CSVConversionMethod.BinanceVision, MarketLoaded);
+		}
+
+		public static void MarketLoaded(SymbolData data)
+		{
+			Market = data.Data.Periods;
+			PrintBetas();
+		}
+
+		public static void PrintBetas()
+		{
+			foreach(var pair in Pairs)
+			{
+				var file = DownloadPath + BuildFile(pair, OHLCVInterval.ThirtyMinute, DateTime.Now.AddMonths(-1)) + ".csv";
+				if (!File.Exists(file))
+					continue;
+
+				SymbolData sym = new SymbolData(pair, new string[] { file }, OHLCVInterval.ThirtyMinute, CSVConversionMethod.BinanceVision, ThrowAwayCallback);
+
+				if (sym.Data.Periods.Count > 0)
+				{
+					try
+					{
+						var beta = Skender.Stock.Indicators.Indicator.GetBeta(Market, sym.Data.Periods, 100);
+
+						var bl = beta.ToList();
+						Console.WriteLine($"{pair}: {bl[bl.Count - 1].Beta}");
+					}
+					catch(Exception e)
+					{
+						Console.WriteLine(e.Message);
+					}
+				}
+			}
+		}
+
+		private static void ThrowAwayCallback(SymbolData obj)
+		{
+			
+		}
+
+		public static void RunReplays()
+		{
+			foreach(var pair in Pairs)
+			{
+				new Replay(Exchanges.Localhost, pair, Interval, 0, null, Results);
+				Position.Positions.RemoveAll(s => true);
+			}
+
+			Console.WriteLine($"Results Avg: {(total_profit / num_symbols):.00}");
+			Console.WriteLine($"Results Prof: {(total_profitability / num_symbols):.00}");
+		}
+
+		public static void Results(ReplayResults r)
+		{
+			total_profit += r.EndTotal;
+			total_profitability += r.Profitability;
+			num_symbols++;
+
+			Console.WriteLine($"{r.Symbol}: {r.Profitability:.00} ({r.Trades}) ${r.EndTotal:.00}");
+		}
+
+		public static void WhitelistResults(ReplayResults r)
+		{
+			// Good trade: Profitability >= 1.3
+			// Trades >= 50
+
+			decimal min_profitability = (decimal)1.3;
+			int min_trades = 50;
+
+			if(r.Profitability >= min_profitability &&
+				r.Trades >= min_trades)
+			{
+				total_profit += r.EndTotal;
+				total_profitability += r.Profitability;
+				num_symbols++;
+
+				Console.WriteLine($"{r.Symbol}: {r.Profitability:.00} ({r.Trades}) ${r.EndTotal:.00}");
+			}
+		}
+
+		public static void BlacklistResults(ReplayResults r)
+		{
+			// Good trade: Profitability >= 1.3
+			// Trades >= 50
+
+			decimal max_profitability = (decimal)1.3;
+			int max_trades = 30;
+
+			if (r.Profitability < max_profitability ||
+				r.Trades < max_trades)
+			{
+				total_profit += r.EndTotal;
+				total_profitability += r.Profitability;
+				num_symbols++;
+
+				//Console.WriteLine($"{r.Symbol}: {r.Profitability:.00} ({r.Trades}) ${r.EndTotal:.00}");
+				Console.WriteLine($"{r.Symbol}");
+			}
+		}
 
 		// Download candle stick data from data.binance.vision
 		public static void DownloadKlines(string pattern, OHLCVInterval interval)

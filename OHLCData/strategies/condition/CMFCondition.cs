@@ -8,24 +8,24 @@ using MarketBot.indicators;
 
 namespace MarketBot.strategies.condition
 {
-	class EMACondition : ConditionalAddon
+	class CMFCondition : ConditionalAddon
 	{
-		private EMA EMA;
-		public EMACondition(SymbolData data, int length) : 
-			base(data, $"{{\"indicators\":[{{\"name\":\"EMA\", \"inputs\":[{length}]}}]}}")
+		private CMF CMF;
+		public CMFCondition(SymbolData data, int length) :
+			base(data, $"{{\"indicators\":[{{\"name\":\"CMF\", \"inputs\":[{length}]}}]}}")
 		{
-			EMA = (EMA)FindIndicator("EMA", length);
+			CMF = (CMF)FindIndicator("CMF", length);
 		}
 
 		public override SignalType[] GetAllowedSignals(int period)
 		{
 			List<SignalType> signals = new List<SignalType>();
-			if (period >= (int)EMA.Inputs[0] + 50)
+			if (period >= (int)CMF.Inputs[0] + 50)
 			{
-				if (Source.Data[period].Low > EMA[period])
+				if (CMF[period] > 0)
 					signals.Add(SignalType.Long);
 
-				if (Source.Data[period].High < EMA[period])
+				if (CMF[period] < 0)
 					signals.Add(SignalType.Short);
 			}
 
@@ -34,7 +34,7 @@ namespace MarketBot.strategies.condition
 
 		public override string GetName()
 		{
-			return "EMA Condition";
+			return "CMF Condition";
 		}
 	}
 }

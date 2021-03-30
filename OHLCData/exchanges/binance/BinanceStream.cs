@@ -9,29 +9,85 @@ using Binance.Net.Enums;
 using Binance.Net.Objects.Spot.UserStream;
 using Binance.Net.Objects.Spot;
 using MarketBot.tools;
+using System.Net.Sockets;
+using CryptoExchange.Net.Sockets;
 
 namespace MarketBot.exchanges.binance
 {
 	static class BinanceStream
 	{
+		static BinanceSocketClient SocketClient = null;
+		static UpdateSubscription Subscription = null;
 		public static void CreateUserStream()
 		{
+			new Task(() =>
+			{
+				while (true)
+				{
+					CreateStream();
+					System.Threading.Thread.Sleep(3600000);
+				}
+			}).Start();
+		}
+
+		private static async void CreateStream()
+		{
+			if(SocketClient != null)
+			{
+				await SocketClient.Unsubscribe(Subscription);
+			}
+
 			using (var client = new BinanceClient())
 			{
 				var key = client.Spot.UserStream.StartUserStream().Data;
 
-				using (var socket = new BinanceSocketClient(new BinanceSocketClientOptions() { AutoReconnect = true, ReconnectInterval = TimeSpan.FromSeconds(5) }))
+				SocketClient = new BinanceSocketClient(new BinanceSocketClientOptions()
 				{
-					var result = socket.Spot.SubscribeToUserDataUpdatesAsync(key, OrderUpdate, OcoOrderUpdate, PositionUpdate, BalanceUpdate);
+					AutoReconnect = true,
+					ReconnectInterval = TimeSpan.FromSeconds(5),
 
-					//socket.
-				}
+				});
+
+				var result = await SocketClient.Spot.SubscribeToUserDataUpdatesAsync(key, OrderUpdate, OcoOrderUpdate, PositionUpdate, BalanceUpdate);
+
+				Subscription = result.Data;
+
+				Subscription.ConnectionLost += Data_ConnectionLost;
+				Subscription.ConnectionRestored += Data_ConnectionRestored;
+				Subscription.ActivityPaused += Data_ActivityPaused;
+				Subscription.ActivityUnpaused += Data_ActivityUnpaused;
 			}
+		}
+
+		private static void Data_ActivityUnpaused()
+		{
+			Program.Print("Data_ActivityUnpaused");
+			RealtimeBot.Finish = false;
+
+		}
+
+		private static void Data_ActivityPaused()
+		{
+			Program.Print("Data_ActivityPaused");
+			RealtimeBot.Finish = true;
+		}
+
+		private static void Data_ConnectionRestored(TimeSpan obj)
+		{
+			Program.Print("Data_ConnectionRestored");
+			RealtimeBot.Finish = false;
+		}
+
+		private static void Data_ConnectionLost()
+		{
+			Program.Print("Data_ConnectionLost");
+			RealtimeBot.Finish = true;
 		}
 
 		private static void OrderUpdate(BinanceStreamOrderUpdate update)
 		{
 			List<Position> ToRemove = new List<Position>();
+			Console.WriteLine($"{update.Symbol}: OrderUpdate");
 
 			// Not in positions list
 			foreach (var pos in Position.Positions)
@@ -47,13 +103,17 @@ namespace MarketBot.exchanges.binance
 							if(update.Status == OrderStatus.PartiallyFilled) // If it only fills partially
 							{
 								pos.Filled += update.LastQuantityFilled;
+								if (new Regex($"^{update.CommissionAsset}").IsMatch(update.Symbol))
+								{
+									pos.Commission += update.Commission;
+								}
 							}
 							if (update.Status == OrderStatus.Filled)
 							{
 								pos.Status			= PositionStatus.Filled;
-								if (new Regex($"^{update.Symbol}").IsMatch(update.CommissionAsset))
+								if (new Regex($"^{update.CommissionAsset}").IsMatch(update.Symbol))
 								{
-									pos.Commission += update.Commission; // Update the fee/commission
+									pos.Commission += update.Commission;
 								}
 								pos.Filled			+= update.LastQuantityFilled;
 								pos.Quantity		= ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, update.Symbol, pos.Filled - pos.Commission);
@@ -105,6 +165,7 @@ namespace MarketBot.exchanges.binance
 									pos.Status = PositionStatus.Filled;
 									pos.Quantity = ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, update.Symbol, pos.Filled - pos.Commission);
 
+									//Program.Log($"{pos.Symbol}: {}")
 									BinanceOrders.PlaceOcoOrder(pos, 0, pos.Quantity);
 								}
 							}
@@ -160,9 +221,9 @@ namespace MarketBot.exchanges.binance
 									RealtimeBot.Losses[pos.Exchange]++;
 								}
 
-								int losses = RealtimeBot.Losses[pos.Exchange] == 0 ? 1 : RealtimeBot.Losses[pos.Exchange];
+								int losses = RealtimeBot.Losses[pos.Exchange];
 								int wins = RealtimeBot.Wins[pos.Exchange];
-								Console.WriteLine($"[{pos.Symbol}] Winrate: {string.Format("{0:0.00}", (decimal)wins / (decimal)(wins + losses))}");
+								Console.WriteLine($"[{pos.Symbol}] Winrate: {(wins / (decimal)(wins + losses)):.00}");
 								ToRemove.Add(pos); // Remove filled sells
 							}
 						}

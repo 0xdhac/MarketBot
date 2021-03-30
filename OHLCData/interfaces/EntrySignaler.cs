@@ -31,7 +31,12 @@ namespace MarketBot
 			
 		}
 
-		public EntrySignaler(SymbolData data, IIndicator[] list) : base(data, list)
+		public EntrySignaler(SymbolData data, Indicator[] list) : base(data, list)
+		{
+
+		}
+
+		public EntrySignaler(SymbolData data, Indicator indicator) : base(data, indicator)
 		{
 
 		}

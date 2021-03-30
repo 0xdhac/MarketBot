@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,17 +9,21 @@ using MarketBot.interfaces;
 namespace MarketBot.indicators
 {
 	// True range function and indicator
-	class TR : Indicator<Tuple<decimal>>
+	class TR : Indicator
 	{
 		public TR(SymbolData data) : base(data) { }
-		public new decimal this[int index]
-		{
-			get => IndicatorData[index].Item1;
-		}
 
-		public override void Calculate(int period)
+		public override DataRow Calculate(int period)
 		{
-			IndicatorData.Add(new Tuple<decimal>(GetTR(Source.Data.Periods, period)));
+			if(period > 0)
+			{
+				decimal tr = GetTR(Source.Data.Periods, period);
+				return Data.Rows.Add(true, tr);
+			}
+			else
+			{
+				return Data.Rows.Add(false, 0);
+			}
 		}
 
 		public static decimal GetTR(HList<OHLCVPeriod> data, int index)
@@ -40,6 +45,12 @@ namespace MarketBot.indicators
 		public override string GetName()
 		{
 			return "True Range";
+		}
+
+		public override void BuildDataTable()
+		{
+			Data.Columns.Add("calculated", typeof(bool));
+			Data.Columns.Add("value", typeof(decimal));
 		}
 	}
 }

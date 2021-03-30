@@ -11,7 +11,7 @@ namespace MarketBot.strategies.condition
 	class RSICondition : ConditionalAddon
 	{
 		private RSI RSI;
-		private bool Overbought;
+		private bool Overbought = false;
 		public RSICondition(SymbolData data, bool overbought_only, int length) :
 			base(data, $"{{\"indicators\":[{{\"name\":\"RSI\", \"inputs\":[{length}]}}]}}")
 		{
@@ -27,11 +27,11 @@ namespace MarketBot.strategies.condition
 			List<SignalType> Allowed = new List<SignalType>();
 			if (Overbought == false)
 			{
-				if (RSI[period].Item4 <= 30)
+				if (RSI[period] <= 30)
 				{
 					Allowed.Add(SignalType.Long);
 				}
-				else if (RSI[period].Item4 >= 70)
+				else if (RSI[period] >= 70)
 				{
 					Allowed.Add(SignalType.Short);
 				}
@@ -43,11 +43,11 @@ namespace MarketBot.strategies.condition
 			}
 			else
 			{
-				if (RSI[period].Item4 >= 70)
+				if (RSI[period] >= 70)
 				{
 					Allowed.Add(SignalType.Short);
 				}
-				else if (RSI[period].Item4 <= 30)
+				else if (RSI[period] <= 30)
 				{
 					Allowed.Add(SignalType.Long);
 				}

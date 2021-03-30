@@ -11,6 +11,7 @@ using System.IO;
 using MarketBot.tools;
 using MarketBot.strategies.condition;
 using MarketBot.indicators;
+using Skender.Stock.Indicators;
 
 namespace MarketBot
 {
@@ -22,7 +23,7 @@ namespace MarketBot
 	}
 	class Replay
 	{
-		public EntrySignaler Current_Strategy;
+		public List<EntrySignaler> Current_Strategy = new List<EntrySignaler>();
 		public RiskStrategy Exit_Strategy;
 		public SymbolData Symbol;
 
@@ -34,20 +35,23 @@ namespace MarketBot
 		private decimal AccountTotal = 10000;
 		private decimal AccountTotal_Start = 0;
 		private decimal BetAmount = 0;
-		private decimal BetPct = (decimal)0.1;
+		private decimal BetPct = (decimal)0.05;
 		private int ResizeEvery = 1;
 		private BetResizeMode ResizeMode = BetResizeMode.Counter;
 		private int SlicesUsed = 0;
 		private decimal TotalRisk = 0;
 		private TimeSpan TimeInTrades = new TimeSpan();
 		private OHLCVInterval Interval;
+		private Action<ReplayResults> Callback = null;
+		IEnumerable<PivotPointsResult> Pivots;
 
-		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods, DateTime? start)
+		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods, DateTime? start, Action<ReplayResults> callback = null)
 		{
 			Interval = interval;
-			Console.WriteLine($"Starting replay/collecting symbol data for {symbol} on exchange {exchange}.");
+			//Console.WriteLine($"Starting replay/collecting symbol data for {symbol} on exchange {exchange}.");
 			if (exchange == Exchanges.Localhost)
 			{
+				Callback = callback;
 				var pattern = symbol + "-" + BinanceAnalyzer.GetKlineInterval(interval) + "*";
 
 				var files = Directory.GetFiles("./klines/", pattern);
@@ -69,15 +73,32 @@ namespace MarketBot
 
 		void OnSymbolLoaded(SymbolData data)
 		{
+			ExchangeTasks.UpdateExchangeInfo(Exchanges.Binance);
 			Symbol = data;
 			Exit_Strategy = new ATRRisk(data);
-			//Exit_Strategy = new Swing(data, 14);
-			//Current_Strategy = new MACDCrossover(Symbol, 12, 26, 9);
-			//Current_Strategy = new CMFCrossover(Symbol, 55, 21);
-			Current_Strategy = new Star(Symbol);
-			//Current_Strategy = new ThreelineStrike(Symbol);
-			//Current_Strategy.Add(new RSICondition(data, false, RSI.Default));
-			Current_Strategy.Add(new EMAOverEMACondition(data, 200, 50));
+
+			//Current_Strategy.Add(new CMFCrossover(Symbol, 55, 21));
+			//Current_Strategy.Add(new MACDCrossover(Symbol, 12, 26, 9));
+			Current_Strategy.Add(new Star(Symbol));
+			//Current_Strategy.Add(new ThreelineStrike(Symbol));
+			//Current_Strategy.Add(new DICrossover(Symbol));
+			//Current_Strategy.Add(new EMATouch(Symbol, 300));
+
+			EMACondition cond1 = new EMACondition(data, 800);
+			//BetweenEMACondition cond1 = new BetweenEMACondition(data, 200, 50);
+			//EMAOverEMACondition cond1 = new EMAOverEMACondition(Symbol, 800, 300);
+			ADXCondition cond2 = new ADXCondition(Symbol, 14);
+			CMFCondition cond3 = new CMFCondition(Symbol, 21);
+			//RSICondition cond3 = new RSICondition(Symbol, false, 14);
+			//PivotPointType.
+			foreach(var strat in Current_Strategy)
+			{
+				strat.Add(cond1);
+				strat.Add(cond2);
+				//strat.Add(cond3);
+			}
+
+			Pivots = Skender.Stock.Indicators.Indicator.GetPivotPoints(data.Data.Periods, PeriodSize.Day);
 
 			Run();
 		}
@@ -86,7 +107,6 @@ namespace MarketBot
 		{
 			AccountTotal_Start = AccountTotal;
 			BetAmount = AccountTotal * BetPct;
-			Console.WriteLine($"Running strategy on {Symbol.Symbol}");
 			bool buy_in_pos = bool.Parse(Program.GetConfigSetting("BUY_WHEN_IN_POSITION"));
 			for (int period = 0; period < Symbol.Data.Periods.Count; period++)
 			{
@@ -99,37 +119,63 @@ namespace MarketBot
 						CheckForExit(Symbol, period, position);
 					}
 
-					if (buy_in_pos == true)
+					if (true)
 					{
-						Current_Strategy.Run(period, OnReplaySignal);
+						foreach (var strat in Current_Strategy)
+						{
+							if (position_list.Count == 0 || true)
+							{
+								strat.Run(period, OnReplaySignal);
+							}
+						}
 					}
 				}
 				else
 				{
-					Current_Strategy.Run(period, OnReplaySignal);
+					foreach (var strat in Current_Strategy)
+					{
+						if (position_list.Count == 0 || true)
+						{
+							strat.Run(period, OnReplaySignal);
+						}
+					}
 				}
 			}
 
-			float profitability = (Losses == 0) ? -1 : ((float)Wins / (float)Losses) / ((float)1 / (float)RiskProfitRatio);
+			decimal profitability = (Losses == 0) ? -1 : ((decimal)Wins / (decimal)Losses) / ((decimal)1 / (decimal)RiskProfitRatio);
 			int trades = (Wins + Losses == 0) ? 1 : Wins + Losses;
 			TimeSpan days = new TimeSpan((ExchangeTasks.GetOHLCVIntervalTimeSpan(Interval).Ticks * Symbol.Data.Periods.Count));
+			ReplayResults r = new ReplayResults()
+			{
+				Profitability = profitability,
+				Symbol = Symbol.Symbol,
+				Trades = Wins + Losses,
+				EndTotal = AccountTotal,
+			};
 
-			Console.WriteLine("--------------------------------");
-			PaddedPrint("Symbol", Symbol.Symbol);
-			PaddedPrint("Interval", $"{Symbol.Interval}");
-			PaddedPrint("Periods", $"{Symbol.Data.Periods.Count} ({days.TotalDays:.00}d)");
-			PaddedPrint("Entry Strategy", Current_Strategy.ToString());
-			PaddedPrint("Exit Strategy", Exit_Strategy.ToString());
-			PaddedPrint("Ratio", $"1:{(float)RiskProfitRatio}");
-			PaddedPrint("Average Trade Periods", $"{((float)TradePeriodsTotal / (float)Trades):.00}");
-			PaddedPrint("Time In Trades", $"{TimeInTrades.TotalDays:.00}d");
-			PaddedPrint("Average Risk", $"{((TotalRisk / (trades)) * 100):0.0000}%");
-			PaddedPrint("Wins", $"{Wins}");
-			PaddedPrint("Losses", $"{Losses}");
-			PaddedPrint("Profitability", $"{profitability:.00}");
-			PaddedPrint("AccountTotal@Start", $"${AccountTotal_Start}");
-			PaddedPrint("AccountTotal@End", $"${AccountTotal:.00}");
-			Console.WriteLine("--------------------------------");
+			if(Callback != null)
+			{
+				Callback(r);
+			}
+			else
+			{
+				Console.WriteLine("--------------------------------");
+				PaddedPrint("Symbol", Symbol.Symbol);
+				PaddedPrint("Interval", $"{Symbol.Interval}");
+				PaddedPrint("Periods", $"{Symbol.Data.Periods.Count} ({days.TotalDays:.00}d)");
+				PaddedPrint("Entry Strategy", Current_Strategy.ToString());
+				PaddedPrint("Exit Strategy", Exit_Strategy.ToString());
+				PaddedPrint("Ratio", $"1:{(float)RiskProfitRatio}");
+				PaddedPrint("Average Trade Periods", $"{((float)TradePeriodsTotal / (float)Trades):.00}");
+				PaddedPrint("Time In Trades", $"{TimeInTrades.TotalDays:.00}d");
+				PaddedPrint("Average Risk", $"{((TotalRisk / (trades)) * 100):0.0000}%");
+				PaddedPrint("Wins", $"{Wins}");
+				PaddedPrint("Losses", $"{Losses}");
+				PaddedPrint("Profitability", $"{profitability:.00}");
+				PaddedPrint("AccountTotal@Start", $"${AccountTotal_Start}");
+				PaddedPrint("AccountTotal@End", $"${AccountTotal:.00}");
+				Console.WriteLine("--------------------------------");
+			}
 		}
 
 		void PaddedPrint(string description, string value)
@@ -151,16 +197,30 @@ namespace MarketBot
 			decimal entry_price = data.Data[period].Close;
 			decimal risk_price = Exit_Strategy.GetRiskPrice(period, signal);
 			decimal profit = RiskProfitRatio;
-			
-			if (Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price) < 0.02)
+
+			var pp = Pivots.ToList();
+			decimal support = pp[period].S1.Value;
+			decimal resistance = pp[period].R2.Value;
+			ExchangeTasks.GetTickSize(Exchanges.Binance, data.Symbol, out decimal tick_size);
+			decimal tick_scale = 10;
+			if (risk_price > support)
 			{
-				//return;
+				risk_price = support - (tick_size * tick_scale);
 			}
 
 			TotalRisk += (decimal)Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price);
 
-
 			decimal profit_price = ((entry_price - risk_price) * profit) + entry_price;
+
+			if(profit_price <= resistance)
+			{
+				profit_price = resistance - (tick_size * tick_scale);
+			}
+
+			if(Math.Abs(((double)profit_price - (double)entry_price) / (double)entry_price) > 0.2)
+			{
+				return;
+			}
 
 			if (entry_price - risk_price == 0)
 				return;
@@ -172,7 +232,7 @@ namespace MarketBot
 				return;
 			}
 
-			new Position(data, period, signal, entry_price, risk_price, profit_price, bet_amount /entry_price, false);
+			new Position(data, period, signal, entry_price, risk_price, profit_price, bet_amount / entry_price, false);
 		}
 
 		public void ExitCallback(SymbolData data, Position pos, int period, bool TradeWon)
@@ -187,7 +247,7 @@ namespace MarketBot
 			int periods = period - pos.Period;
 			TradePeriodsTotal += periods;
 
-			TimeInTrades += new TimeSpan((ExchangeTasks.GetOHLCVIntervalTimeSpan(Interval).Ticks * periods));
+			TimeInTrades += new TimeSpan(ExchangeTasks.GetOHLCVIntervalTimeSpan(Interval).Ticks * periods);
 
 
 			//$10 / 2LTC 5 * 0.0075

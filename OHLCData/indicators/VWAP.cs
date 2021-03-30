@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -7,7 +8,7 @@ using MarketBot.interfaces;
 
 namespace MarketBot.indicators
 {
-	public class VWAP : Indicator<Tuple<decimal, decimal, decimal>>
+	public class VWAP : Indicator
 	{	
 		/*
 		 * if outside of standard deviation band(2) then no entry
@@ -18,12 +19,7 @@ namespace MarketBot.indicators
 
 		public VWAP(SymbolData data) : base(data) { }
 
-		public new decimal this[int index]
-		{
-			get => IndicatorData[index].Item3;
-		}
-
-		public override void Calculate(int period)
+		public override DataRow Calculate(int period)
 		{
 			decimal cumulative_price = 0;
 			decimal cumulative_volume = 0;
@@ -33,25 +29,25 @@ namespace MarketBot.indicators
 
 			if (period != 0)
 			{
-				if(Source[period - 1].OpenTime.Day != Source[period].OpenTime.Day)
+				if(Source[period - 1].Date.Day != Source[period].Date.Day)
 				{
 					cumulative_price = current_typical_price;
 					cumulative_volume = current_volume;
 				}
 				else
 				{
-					cumulative_price = IndicatorData[period - 1].Item1 + current_typical_price;
-					cumulative_volume = IndicatorData[period - 1].Item2 + current_volume;
+					cumulative_price = Value<decimal>("price", period - 1) + current_typical_price;
+					cumulative_volume = Value<decimal>("volume", period - 1) + current_volume;
 				}
 			}
 
 			if (cumulative_volume != 0)
 			{
-				IndicatorData.Add(new Tuple<decimal, decimal, decimal>(cumulative_price, cumulative_volume, cumulative_price / cumulative_volume));
+				return Data.Rows.Add(cumulative_price, cumulative_volume, cumulative_price / cumulative_volume);
 			}
 			else
 			{
-				IndicatorData.Add(new Tuple<decimal, decimal, decimal>(cumulative_price, cumulative_volume, 0));
+				return Data.Rows.Add(cumulative_price, cumulative_volume, 0);
 			}
 		}
 
@@ -64,6 +60,13 @@ namespace MarketBot.indicators
 		public override string GetName()
 		{
 			return "Volume Weighted Average Price";
+		}
+
+		public override void BuildDataTable()
+		{
+			Data.Columns.Add("price", typeof(decimal));
+			Data.Columns.Add("volume", typeof(decimal));
+			Data.Columns.Add("value", typeof(decimal));
 		}
 	}
 }

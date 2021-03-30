@@ -20,6 +20,7 @@ using NLog;
 using MarketBot.strategies.condition;
 using MarketBot.strategies.signals;
 using Newtonsoft.Json;
+using Skender.Stock.Indicators;
 
 namespace MarketBot
 {
@@ -75,6 +76,7 @@ namespace MarketBot
 			Commands.Register("backtest", BacktestCommand);
 			Commands.Register("bot", BotCommand);
 			Commands.Register("help", HelpCommand);
+			Commands.Register("reload", ReloadCommand);
 
 			Console.ForegroundColor = ConsoleColor.Cyan;
 			Console.WriteLine("MarketBot\n");
@@ -84,13 +86,15 @@ namespace MarketBot
 			Commands.Execute("help");
 			Console.WriteLine("");
 
-			//SymbolData s = new SymbolData(Exchanges.Binance, OHLCVInterval.ThirtyMinute, "BTCUSDT", 1000, TestDeleteLater, false);
+			//SymbolData s = new SymbolData(Exchanges.Binance, OHLCVInterval.ThirtyMinute, "BTCUSDT", 2000, TestDeleteLater, false);
+			//new Replay(Exchanges.Binance, "BTCUSDT", OHLCVInterval.OneMinute, 100000, DateTime.UtcNow);
+			//new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.ThirtyMinute, 0, null);
 
-			//new Replay(Exchanges.Binance, "SCUSDT", OHLCVInterval.ThirtyMinute, 100000, DateTime.UtcNow);
-			//new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.FifteenMinute, 0, null);
+			//SymbolData s = new SymbolData(Exchanges.Localhost, "./klines/")
+			BinanceAnalyzer.Run("USDT$", OHLCVInterval.ThirtyMinute, false);
 
-			TupleList a = new TupleList("bool", "int", "decimal", "decimal");
-			//BinanceAnalyzer.Run("USDT$", OHLCVInterval.FifteenMinute);
+			
+
 
 			while (true)
 			{
@@ -105,12 +109,20 @@ namespace MarketBot
 
 		private static void TestDeleteLater(SymbolData data)
 		{
-			EntrySignaler s = new ThreelineStrike(data);
-			s.Add(new EMACondition(data, 200));
-			s.Add(new RSICondition(data, false, 14));
+			var result = Skender.Stock.Indicators.Indicator.GetPivotPoints(data.Data.Periods, PeriodSize.Day);
 
-			Console.Write(JsonConvert.SerializeObject(s.ToExpando()));
-			//RSI rsi = new RSI()
+			foreach(var atr in result)
+			{
+				Console.WriteLine($"{atr.Date}: {atr.PP:.0000}, {atr.R1:.0000} {atr.R2:.0000} {atr.R3:.0000} {(atr.R4.HasValue?atr.R4:null):.0000}, {atr.S1:.0000} {atr.S2:.0000}");
+			}
+			//ATR atr = new ATR(data, 14);
+			//TR tr = new TR(data);
+		}
+
+		private static void ReloadCommand(string[] args)
+		{
+			ConfigurationManager.RefreshSection("appSettings");
+			Console.WriteLine("App settings reloaded.");
 		}
 
 		private static void HelpCommand(string[] args)

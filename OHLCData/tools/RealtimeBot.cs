@@ -7,6 +7,7 @@ using MarketBot.strategies.signals;
 using MarketBot.interfaces;
 using MarketBot.strategies.position;
 using MarketBot.indicators;
+using MarketBot.strategies.condition;
 
 namespace MarketBot.tools
 {
@@ -24,9 +25,9 @@ namespace MarketBot.tools
 		public static bool Finish = false;
 		public static int BuyCount = 0;
 		private static decimal BetAmount = 0;
-		private static decimal BetPct = (decimal)0.005;
+		private static decimal BetPct = (decimal)0.05;
 
-		public static int ResetBetAmountEvery = 5;
+		public static int ResetBetAmountEvery = 1;
 
 		private static int Loaded = 0;
 
@@ -43,6 +44,7 @@ namespace MarketBot.tools
 
 			ExchangeTasks.UpdateExchangeInfo(Exchanges.Binance);
 			ExchangeTasks.GetWallet(Exchanges.Binance, OnWalletLoaded);
+			ExchangeTasks.LoadPositions(Exchanges.Binance);
 			ExchangeTasks.GetTradingPairs(Exchanges.Binance, Program.GetConfigSetting("BINANCE_SYMBOL_REGEX"), TradingPairsRetrieved);
 			ExchangeTasks.CreateUserStream(Exchanges.Binance);
 		}
@@ -77,32 +79,11 @@ namespace MarketBot.tools
 			SequentialSymbolDownload(Exchanges.Binance);
 		}
 
-		private static bool BTCLoaded = false;
-
 		private static void SequentialSymbolDownload(Exchanges ex)
 		{
-			if (BTCLoaded == false)
+			if(Loaded < TradingPairs[ex].Count)
 			{
-				foreach (var item in TradingPairs[ex])
-				{
-					if(item.Key == "BTCUSDT")
-					{
-						new SymbolData(ex, OHLCVInterval.OneMinute, "BTCUSDT", 1440, SymbolLoaded, true);
-						BTCLoaded = true;
-					}
-				}
-			}
-			else if(Loaded < TradingPairs[ex].Count)
-			{
-				if (TradingPairs[ex].ElementAt(Loaded).Key != "BTCUSDT")
-				{
-					new SymbolData(ex, OHLCVInterval.OneMinute, TradingPairs[ex].ElementAt(Loaded++).Key, 1440, SymbolLoaded, true);
-				}
-				else
-				{
-					Loaded++;
-					SequentialSymbolDownload(ex);
-				}
+				new SymbolData(ex, OHLCVInterval.ThirtyMinute, TradingPairs[ex].ElementAt(Loaded++).Key, 2000, SymbolLoaded, true);
 			}
 		}
 
@@ -127,10 +108,20 @@ namespace MarketBot.tools
 				Risk_Strategies[data.Exchange][data.Symbol] = new List<RiskStrategy>();
 			}
 
-			Entry_Strategies[data.Exchange][data.Symbol].Add(new CMFCrossover(data, 21, 30));
-			Entry_Strategies[data.Exchange][data.Symbol].Add(new MACDCrossover(data, 12, 26, 9));
-			Risk_Strategies[data.Exchange][data.Symbol].Add(new Swing(data, 2));
-			Risk_Strategies[data.Exchange][data.Symbol].Add(new strategies.position.ATRRisk(data));
+			//Entry_Strategies[data.Exchange][data.Symbol].Add(new CMFCrossover(data, 55, 21));
+			//Entry_Strategies[data.Exchange][data.Symbol].Add(new MACDCrossover(data, 12, 26, 9));
+			Entry_Strategies[data.Exchange][data.Symbol].Add(new Star(data));
+			//Entry_Strategies[data.Exchange][data.Symbol].Add(new ThreelineStrike(data));
+
+			EMACondition cond1 = new EMACondition(data, 200);
+			ADXCondition cond2 = new ADXCondition(data, 14);
+			foreach(var strat in Entry_Strategies[data.Exchange][data.Symbol])
+			{
+				strat.Add(cond1);
+				strat.Add(cond2);
+			}
+
+			Risk_Strategies[data.Exchange][data.Symbol].Add(new ATRRisk(data));
 
 			SequentialSymbolDownload(data.Exchange);
 
@@ -163,8 +154,6 @@ namespace MarketBot.tools
 			BetAmount = Wallets[ex].Total * BetPct;
 		}
 
-		private static VWAP BTC_Vwap = null;
-
 		public static void OnClose(object data, EventArgs e)
 		{
 			if (Finish == true)
@@ -173,7 +162,7 @@ namespace MarketBot.tools
 			}
 
 			SymbolData sym = (SymbolData)data;
-
+			//Console.WriteLine($"{sym.Symbol}: Close");
 			// If not blacklisted and no discrepency in the symbol data
 			if (!TradingPairs[sym.Exchange][sym.Symbol] && !sym.Data.CollectionFailed)
 			{
@@ -189,22 +178,6 @@ namespace MarketBot.tools
 			// Disable short positions for now
 			if(signal == SignalType.Short)
 			{
-				return;
-			}
-
-			if (BTC_Vwap == null)
-			{
-				SymbolData BTCSym = Symbols.Find((s) => s.Symbol == "BTCUSDT");
-
-				if (BTCSym != null)
-				{
-					BTC_Vwap = (VWAP)BTCSym.RequireIndicator("VWAP");
-				}
-			}
-
-			if (symbol.Data[symbol.Data.Periods.Count - 1].Low < BTC_Vwap[BTC_Vwap.Source.Data.Periods.Count - 1])
-			{
-				Console.WriteLine("Ignoring signal");
 				return;
 			}
 
@@ -225,15 +198,10 @@ namespace MarketBot.tools
 			decimal bet_amount = BetAmount;
 			if(BetAmount > Wallets[symbol.Exchange].Available)
 			{
-				if(Wallets[symbol.Exchange].Available > 15)
-				{
-					bet_amount = 14;
-				}
-				else
+				if(Wallets[symbol.Exchange].Available > bet_amount)
 				{
 					return;
 				}
-				
 			}
 
 			int max_orders = int.Parse(Program.GetConfigSetting("NUM_ORDERS_BEFORE_STOPPING_BOT"));
@@ -248,10 +216,6 @@ namespace MarketBot.tools
 			decimal entry_price = symbol.Data[period].Close;
 			decimal risk_price = Risk_Strategies[symbol.Exchange][symbol.Symbol][0].GetRiskPrice(period, signal);
 			decimal profit = 3;
-			if (Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price) < 0.002)
-			{
-				risk_price = Risk_Strategies[symbol.Exchange][symbol.Symbol][1].GetRiskPrice(period, signal);
-			}
 			decimal profit_price = ((entry_price - risk_price) * profit) + entry_price;
 
 			// Hardcoded prevention of impossible positions
@@ -259,7 +223,8 @@ namespace MarketBot.tools
 				return;
 
 			// Create position
-			new Position(symbol, period, signal, entry_price, risk_price, profit_price, bet_amount / entry_price, true);
+			var pos = new Position(symbol, period, signal, entry_price, risk_price, profit_price, bet_amount / entry_price, true);
+			pos.CreateOrder();
 		}
 	}
 }

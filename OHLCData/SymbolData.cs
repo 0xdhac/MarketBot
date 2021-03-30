@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using MarketBot.interfaces;
 using MarketBot.indicators;
 using System.Reflection;
+using MarketBot.tools;
+using System.IO;
 
 namespace MarketBot
 {
@@ -15,7 +17,7 @@ namespace MarketBot
 		public string Symbol;
 		public Exchanges Exchange;
 		public IExchangeOHLCVCollection Data;
-		public HList<IIndicator> Indicators = new HList<IIndicator>();
+		public HList<Indicator> Indicators = new HList<Indicator>();
 		public bool SymbolDataIsLoaded = false;
 		private Action<SymbolData> ExternalCollectionCallback;
 		public OHLCVInterval Interval;
@@ -29,10 +31,36 @@ namespace MarketBot
 			Symbol = symbol;
 			Interval = interval;
 			ExternalCollectionCallback = callback;
-			Periods = periods;
+			
 			StartTime = start.HasValue ? start.Value : DateTime.UtcNow;
-			Screening = screener_update;
-			Data = ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, CollectionCallback, screener_update, StartTime);
+			
+
+			if(exchange == Exchanges.Localhost)
+			{
+				var pattern = symbol + "-" + BinanceAnalyzer.GetKlineInterval(interval) + "*";
+
+				var files = Directory.GetFiles("./klines/", pattern);
+
+				files.OrderBy((v1) => v1);
+
+				Data = new GenericOHLCVCollection();
+
+				foreach (var file in files)
+				{
+					CSVToOHLCData.Convert(file, Data.Periods, CSVConversionMethod.BinanceVision);
+				}
+
+				Periods = Data.Periods.Count;
+				SymbolDataIsLoaded = true;
+				callback(this);
+			}
+			else
+			{
+				Screening = screener_update;
+				Periods = periods;
+				Data = ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, CollectionCallback, screener_update, StartTime);
+			}
+			
 		}
 
 		public SymbolData(string symbol, string[] files, OHLCVInterval interval, CSVConversionMethod method, Action<SymbolData> symbol_loaded_callback)
@@ -73,7 +101,7 @@ namespace MarketBot
 			}
 		}
 
-		public void ApplyIndicator(IIndicator indicator)
+		public void ApplyIndicator(Indicator indicator)
 		{
 			Indicators.Add(indicator);
 		}
@@ -83,12 +111,12 @@ namespace MarketBot
 			Indicators.RemoveRange(0, Indicators.Count);
 		}
 
-		public void DeleteIndicators(HList<IIndicator> list)
+		public void DeleteIndicators(HList<Indicator> list)
 		{
 			Indicators.RemoveAll((i) => list.Contains(i));
 		}
 
-		public IIndicator GetIndicatorByName(string indicator_name)
+		public Indicator GetIndicatorByName(string indicator_name)
 		{
 			foreach(var indicator in Indicators)
 			{
@@ -101,7 +129,7 @@ namespace MarketBot
 			return null;
 		}
 
-		public IIndicator RequireIndicator(string indicator_name, params object[] inputs)
+		public Indicator RequireIndicator(string indicator_name, params object[] inputs)
 		{
 			foreach (var indicator in Indicators)
 			{
@@ -135,7 +163,7 @@ namespace MarketBot
 			{
 				input_list.Add(input);
 			}
-			IIndicator new_indicator_instance = (IIndicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), input_list.ToArray());
+			Indicator new_indicator_instance = (Indicator)Activator.CreateInstance(Type.GetType("MarketBot.indicators." + indicator_name), input_list.ToArray());
 			ApplyIndicator(new_indicator_instance);
 			return new_indicator_instance;
 		}

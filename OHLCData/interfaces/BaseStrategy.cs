@@ -8,7 +8,7 @@ namespace MarketBot.interfaces
 {
 	public abstract class BaseStrategy : Expandum
 	{
-		public List<IIndicator> Indicators = new List<IIndicator>();
+		public List<Indicator> Indicators = new List<Indicator>();
 		public SymbolData Source;
 
 		public BaseStrategy(SymbolData data, IndicatorList list = null)
@@ -24,7 +24,7 @@ namespace MarketBot.interfaces
 			}
 		}
 
-		public BaseStrategy(SymbolData data, IIndicator[] list)
+		public BaseStrategy(SymbolData data, Indicator[] list)
 		{
 			Source = data;
 
@@ -34,7 +34,14 @@ namespace MarketBot.interfaces
 			}
 		}
 
-		public IIndicator FindIndicator(string name, params object[] inputs)
+		public BaseStrategy(SymbolData data, Indicator indicator)
+		{
+			Source = data;
+
+			Indicators.Add(indicator);
+		}
+
+		public Indicator FindIndicator(string name, params object[] inputs)
 		{
 			foreach (var indicator in Indicators)
 			{

@@ -88,13 +88,13 @@ namespace MarketBot
 
 			if(Real == true)
 			{
-				//Console.WriteLine($"[{symbol}] Position created. Type = {Type}, Entry @ {Entry}, Risk @ {Risk}, Profit @ {Profit}");
-				//if (DateTime.UtcNow.Second > 5)
-				RealtimeBot.BuyCount++;
-				ExchangeTasks.PlaceOrder(Exchange, symbol, this, GenericOrderType.Limit);
-				//else
-				//	ExchangeTasks.PlaceOrder(Exchange, symbol, this, GenericOrderType.Buy);
 			}
+		}
+
+		public void CreateOrder()
+		{
+			RealtimeBot.BuyCount++;
+			ExchangeTasks.PlaceOrder(Exchange, this, GenericOrderType.Limit);
 		}
 
 		public void Close()
@@ -110,6 +110,15 @@ namespace MarketBot
 
 	static class ExchangeTasks
 	{
+		public static void LoadPositions(Exchanges ex)
+		{
+			switch (ex)
+			{
+				case Exchanges.Binance:
+					BinanceAccount.LoadPositions();
+					break;
+			}
+		}
 		public static void UpdateExchangeInfo(Exchanges ex)
 		{
 			switch (ex)
@@ -194,7 +203,7 @@ namespace MarketBot
 
 
 
-		public static void PlaceOrder(Exchanges ex, string symbol, Position pos, GenericOrderType type)
+		public static void PlaceOrder(Exchanges ex, Position pos, GenericOrderType type)
 		{
 			switch(ex)
 			{
