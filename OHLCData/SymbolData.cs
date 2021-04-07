@@ -39,7 +39,7 @@ namespace MarketBot
 			{
 				var pattern = symbol + "-" + BinanceAnalyzer.GetKlineInterval(interval) + "*";
 
-				var files = Directory.GetFiles("./klines/", pattern);
+				var files = Directory.GetFiles(Program.GetConfigSetting("KLINE_DATA_FOLDER"), pattern);
 
 				files.OrderBy((v1) => v1);
 
@@ -60,10 +60,9 @@ namespace MarketBot
 				Periods = periods;
 				Data = ExchangeTasks.CollectOHLCV(exchange, symbol, interval, periods, CollectionCallback, screener_update, StartTime);
 			}
-			
 		}
 
-		public SymbolData(string symbol, string[] files, OHLCVInterval interval, CSVConversionMethod method, Action<SymbolData> symbol_loaded_callback)
+		public SymbolData(string symbol, string[] files, OHLCVInterval interval, CSVConversionMethod method, Action<SymbolData> symbol_loaded_callback = null)
 		{
 			Exchange = Exchanges.Localhost;
 			Symbol = symbol;
@@ -77,7 +76,9 @@ namespace MarketBot
 			
 			Periods = Data.Periods.Count;
 			SymbolDataIsLoaded = true;
-			symbol_loaded_callback(this);
+
+			if(symbol_loaded_callback != null)
+				symbol_loaded_callback(this);
 		}
 
 		public OHLCVPeriod this[int index] { get => Data.Periods[index]; }

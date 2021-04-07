@@ -7,6 +7,7 @@ using Binance.Net.Enums;
 using Binance.Net;
 using Binance.Net.Interfaces;
 using Binance.Net.Objects.Spot;
+using CryptoExchange.Net.Sockets;
 
 namespace MarketBot
 {
@@ -14,7 +15,10 @@ namespace MarketBot
 	{
 		public string Name { get; set; }
 		public bool CollectionFailed { get; set; }
+		private bool FinishedDownloading = false;
 		public HList<OHLCVPeriod> Periods { get; set; }
+		BinanceSocketClient SocketClient = null;
+		UpdateSubscription Subscription = null;
 
 		public BinanceOHLCVCollection(string name)
 		{
@@ -28,50 +32,66 @@ namespace MarketBot
 			get => Periods[index];
 		}
 
-		public void CollectApiOHLCV(OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_updates, DateTime? start = null)
+		public async void CollectApiOHLCV(OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_updates, DateTime? start = null)
 		{
 			KlineInterval klv = ConvertToExchangeInterval(interval);
 
-			Task.Run(() =>
+			// Subscribe to updates in new information
+			if (screener_updates)
 			{
-				// Subscribe to updates in new information
-				if (screener_updates)
+				SocketClient = new BinanceSocketClient(new BinanceSocketClientOptions() 
+				{ 
+					AutoReconnect = true, 
+					ReconnectInterval = TimeSpan.FromSeconds(5) 
+				});
+
+				var result = await SocketClient.Spot.SubscribeToKlineUpdatesAsync(Name, klv, OnKlineUpdate);
+
+				Subscription = result.Data;
+				Subscription.ConnectionLost += Subscription_ConnectionLost;
+				Subscription.ConnectionRestored += Subscription_ConnectionRestored;
+			}
+
+			// Download historical data
+			using (var client = new BinanceClient())
+			{
+				DateTime dt = (start.HasValue) ? start.Value : DateTime.UtcNow - ExchangeTasks.GetOHLCVIntervalTimeSpan(interval);
+				while (periods > 0)
 				{
-					using (var socket_client = new BinanceSocketClient(new BinanceSocketClientOptions() { AutoReconnect = true, ReconnectInterval = TimeSpan.FromSeconds(5) }))
+					int limit = (periods >= 1000) ? 1000 : periods;
+					periods -= 1000;
+
+					var data = client.Spot.Market.GetKlines(Name, klv, null, dt, limit);
+					if (data.Success)
 					{
-						socket_client.Spot.SubscribeToKlineUpdatesAsync(Name, klv, OnKlineUpdate);
+						foreach (var candle in data.Data.Reverse())
+						{
+							Periods.Insert(0, ConvertOHLCVPeriod(candle));
+						}
+
+						dt = Periods[0].Date.Subtract(new TimeSpan(0, 0, 1));
+					}
+					else
+					{
+						Console.WriteLine($"Error collecting symbol data for {Name}{data.Error}");
+						CollectionFailed = true;
 					}
 				}
 
-				// Download historical data
-				using (var client = new BinanceClient())
-				{
-					DateTime dt = (start.HasValue) ? start.Value : DateTime.UtcNow - ExchangeTasks.GetOHLCVIntervalTimeSpan(interval);
-					while (periods > 0)
-					{
-						int limit = (periods >= 1000) ? 1000 : periods;
-						periods -= 1000;
+				FinishedDownloading = true;
+			}
 
-						var data = client.Spot.Market.GetKlines(Name, klv, null, dt, limit);
-						if (data.Success)
-						{
-							foreach (var candle in data.Data.Reverse())
-							{
-								Periods.Insert(0, ConvertOHLCVPeriod(candle));
-							}
+			callback(this);
+		}
 
-							dt = Periods[0].Date.Subtract(new TimeSpan(0, 0, 1));
-						}
-						else
-						{
-							Console.WriteLine($"Error collecting symbol data for {Name}{data.Error}");
-							CollectionFailed = true;
-						}
-					}
-				}
+		private void Subscription_ConnectionRestored(TimeSpan obj)
+		{
+			Program.Log($"{Name} Connection restored");
+		}
 
-				callback(this);
-			});
+		private void Subscription_ConnectionLost()
+		{
+			Program.Log($"{Name} Connection lost");
 		}
 
 		private void OnKlineUpdate(IBinanceStreamKlineData obj)
@@ -81,6 +101,14 @@ namespace MarketBot
 				if(Periods.Count == 0 || (obj.Data.OpenTime - Periods[Periods.Count - 1].Date == ExchangeTasks.GetOHLCVIntervalTimeSpan(ConvertToGeneralInterval(obj.Data.Interval))))
 				{
 					Periods.Add(ConvertOHLCVPeriod(obj.Data));
+
+					if(FinishedDownloading == true)
+					{
+						foreach (var pos in Position.FindPositions(Exchanges.Binance, Name))
+						{
+							pos.OnSymbolKlineUpdate();
+						}
+					}
 				}
 				else
 				{

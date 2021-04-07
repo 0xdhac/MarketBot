@@ -6,6 +6,21 @@ using System.Threading.Tasks;
 
 namespace MarketBot
 {
+	/*
+	public static partial class IEnumerable<T>
+	{ 
+		public static HList<T> ToList<T>(this IEnumerable<T> source)
+		{
+			if (source == null)
+			{
+				throw new ArgumentException("null", "source");
+			}
+			return new HList<T>(source);
+		}
+	}
+	*/
+
+
 	public class HList<T> : List<T>
 	{
 		public event EventHandler OnAdd;
@@ -17,6 +32,16 @@ namespace MarketBot
 
 		public event EventHandler OnRemove;
 		public event EventHandler OnRemove_Post;
+
+		public HList(IEnumerable<T> source) : base(source)
+		{
+			
+		}
+
+		public HList() : base()
+		{
+
+		}
 
 		public new void Add(T item)
 		{

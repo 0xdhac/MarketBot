@@ -4,6 +4,13 @@ using System.Collections.Generic;
 using System.Linq;
 using MarketBot.interfaces;
 using MarketBot.tools;
+using MarketBot.skender_strategies;
+using MarketBot.skender_strategies.exit_strategy;
+using Binance.Net;
+using MySql.Data.MySqlClient;
+using System.Diagnostics;
+using Binance.Net.Enums;
+using Binance.Net.Objects.Spot.UserStream;
 
 namespace MarketBot
 {
@@ -15,86 +22,128 @@ namespace MarketBot
 
 	public enum PositionStatus
 	{
-		New,
+		Started,
 		Ordered,
-		Filled,
-		Oco
+		Failed,
+		WaitingForExit,
+		Exited
 	};
+
+	public enum TradesTable
+	{
+		OrderId,
+		Symbol,
+		Signal,
+		Quantity,
+		EntryPrice,
+		ExitPrice,
+		AccountType,
+		Status,
+		Commission,
+		CommissionAsset,
+		ExitOrderId,
+		Exchange,
+		Id,
+		Date,
+		FilledQuantity
+	}
 
 	public enum GenericOrderType
 	{
 		Market,
 		Limit
 	}
-	//public delegate void OrderUpdateCallback(OrderInfo info);
-	public delegate void ExitPositionCallback(Position pos);
 
 	public class Position
 	{
 		public static List<Position> Positions = new List<Position>();
-		public Exchanges Exchange;
-		public string Symbol;
-		public decimal Entry;
-		public decimal Risk;
-		public decimal Profit;
-		public decimal Filled = 0;
-		public SignalType Type;
-		public int Period;
+		public List<ExitStrategy> ExitStrategies { get; set; } = new List<ExitStrategy>();
+		public Exchanges Exchange { get; set; }
+		public string Symbol { get; set; }
+		public decimal Entry { get; set; }
+		public SignalType Type { get; set; }
 		public bool Real;
-		public decimal Quantity;
-		public PositionStatus Status;
-		public decimal Commission;
-		public long OrderId;
+		public decimal DesiredQuantity { get; set; }
+		public decimal? FilledQuantity { get; set; }
+		public PositionStatus Status = PositionStatus.Started;
+		public decimal? Commission { get; set; } = 0;
+		public string Commission_Asset { get; set; }
+		public string OrderId = null;
+		public string ExitOrderId = null;
+		public uint? Id { get; set; }
+		public DateTime Date;
+		public string AccountType { get; set; }
 
-		public Position(SymbolData data, int period, SignalType signal, decimal entry_price, decimal risk_price, decimal profit_price, decimal quantity, bool real)
+		/* When to save MySQL record
+		 * 
+		 * When position is created
+		 * On creation of entry order
+		 * Whenever there is an entry order update (Changes in: Quantity filled, order status)
+		 * On creation of exit order
+		 * On exit order update
+		 */
+
+		public Position(Exchanges exchange, string symbol, SignalType signal, DateTime date, decimal entry_price, decimal quantity, bool real)
 		{
-			Create(data.Exchange, data.Symbol, period, signal, entry_price, risk_price, profit_price, quantity, real);
-		}
+			Exchange = exchange;
+			Symbol = symbol;
+			Entry = real ? ExchangeTasks.GetTickSizeAdjustedValue(exchange, symbol, entry_price) : entry_price;
+			DesiredQuantity = real ? ExchangeTasks.GetStepSizeAdjustedQuantity(exchange, symbol, quantity) : quantity;
+			Type = signal;
+			Real = real;
+			Status = PositionStatus.Started;
+			Commission = 0;
+			Date = date;
+			AccountType = "Spot";
 
-		public Position(Exchanges exchange, string symbol, int period, SignalType signal, decimal entry_price, decimal risk_price, decimal profit_price, decimal quantity, bool real)
-		{
-			Create(exchange, symbol, period, signal, entry_price, risk_price, profit_price, quantity, real);
-		}
-
-		private void Create(Exchanges exchange, string symbol, int period, SignalType signal, decimal entry_price, decimal risk_price, decimal profit_price, decimal quantity, bool real)
-		{
-			Exchange	= exchange;
-			Symbol		= symbol;
-			Entry		= real ? ExchangeTasks.GetTickSizeAdjustedValue(exchange, symbol, entry_price) : entry_price;
-
-			if (real)
-			{
-				decimal tick_size;
-				if (!ExchangeTasks.GetTickSize(exchange, symbol, out tick_size))
-				{
-					throw new Exception($"[{symbol}] Tick size not found for symbol");
-				}
-				Entry += (tick_size * 5);
-			}
-
-			Risk		= real ? ExchangeTasks.GetTickSizeAdjustedValue(exchange, symbol, risk_price): risk_price;
-			Profit		= real ? ExchangeTasks.GetTickSizeAdjustedValue(exchange, symbol, profit_price): profit_price;
-			Quantity	= real ? ExchangeTasks.GetStepSizeAdjustedQuantity(exchange, symbol, quantity) : quantity;
-			Type		= signal;
-			Period		= period;
-			Real		= real;
-			Status		= PositionStatus.New;
-			Commission	= 0;
-
-			//Console.WriteLine($"{symbol}: {entry_price}, {risk_price} {Math.Abs((risk_price - entry_price) / entry_price)}, {profit_price} {Math.Abs((profit_price - entry_price) / entry_price)}");
-			//Console.WriteLine($"{symbol}: {Entry}, {Risk} {Math.Abs((Risk - Entry) / Entry)}, {Profit} {Math.Abs((Profit - Entry) / Entry)}");
+			/*
+			 * MySQL Table Columns:
+			 * - Symbol
+			 * - OrderId (Primary key)
+			 * - Date
+			 * - Signal
+			 * - Quantity
+			 * - Quantity filled
+			 * - Entry price
+			 * - Exit price (Can be NULL if trade unfinished)
+			 * - Account type (Spot)
+			 * - Order status
+			 * - Real
+			 * - Commission
+			 * - Commission Asset
+			 */
 
 			Positions.Add(this);
-
-			if(Real == true)
-			{
-			}
 		}
 
 		public void CreateOrder()
 		{
-			RealtimeBot.BuyCount++;
-			ExchangeTasks.PlaceOrder(Exchange, this, GenericOrderType.Limit);
+			throw new Exception("Make sure risk/profit are fixed before calling this.");
+			//RealtimeBot.BuyCount++;
+			//ExchangeTasks.PlaceOrder(Exchange, this, GenericOrderType.Limit);
+		}
+
+		public void OrderStreamUpdate(BinanceStreamOrderUpdate update)
+		{
+			if(update.OriginalClientOrderId == OrderId)
+			{
+
+			}
+			else if(update.OriginalClientOrderId == ExitOrderId)
+			{
+
+			}
+		}
+
+		public void OnSymbolKlineUpdate()
+		{
+			foreach(var exit in ExitStrategies)
+			{
+				if(exit.ShouldExit(exit.History.Count - 1, Type, out decimal price))
+				{
+					// Place order for market sell OR do some algebra and calculate new stoploss and profits
+				}
+			}
 		}
 
 		public void Close()
@@ -102,9 +151,69 @@ namespace MarketBot
 			Positions.Remove(this);
 		}
 
-		public static List<Position> FindPositions(SymbolData data)
+		public static List<Position> FindPositions(Exchanges exchange, string symbol)
 		{
-			return Positions.Where((r) => r.Exchange == data.Exchange && r.Symbol == data.Symbol).ToList();
+			return Positions.Where((r) => r.Exchange == exchange && r.Symbol == symbol).ToList();
+		}
+
+		public void SaveToDb()
+		{
+			if(Id == null)
+			{
+
+			}
+			//string query = "INSERT INTO `trades` (`symbol`, `signal`, `quantity`"
+		}
+
+		public static void LoadFromDb()
+		{
+			using (var client = new BinanceClient())
+			{
+				string query = "SELECT * FROM `trades` WHERE `status` LIKE 'WaitingForExit' OR `status` LIKE 'Ordered'";
+
+				var command = new MySqlCommand();
+				command.Connection = Program.Connection;
+				command.CommandText = query;
+				var reader = command.ExecuteReader();
+
+				while (reader.Read())
+				{
+					try
+					{
+						string orderid			= reader.IsDBNull((int)TradesTable.OrderId)?null:reader.GetString((int)TradesTable.OrderId);
+						string symbol			= reader.GetString((int)TradesTable.Symbol);
+						SignalType signal		= (SignalType)Enum.Parse(typeof(SignalType), reader.GetString((int)TradesTable.Signal));
+						decimal quantity		= reader.GetDecimal((int)TradesTable.Quantity);
+						decimal entry_price		= reader.GetDecimal((int)TradesTable.EntryPrice);
+						string account_type		= reader.GetString((int)TradesTable.AccountType);
+						decimal commission		= reader.GetDecimal((int)TradesTable.Commission);
+						string commission_asset = reader.GetString((int)TradesTable.CommissionAsset);
+						string exit_orderid		= reader.GetString((int)TradesTable.ExitOrderId);
+						Exchanges exchange		= (Exchanges)Enum.Parse(typeof(Exchanges), reader.GetString((int)TradesTable.Exchange));
+						DateTime date			= DateTime.Parse(reader.GetString((int)TradesTable.Date));
+						uint id					= reader.GetUInt32((int)TradesTable.Id);
+						decimal filled_quantity = reader.GetDecimal((int)TradesTable.FilledQuantity);
+						PositionStatus status = (PositionStatus)Enum.Parse(typeof(PositionStatus), reader.GetString((int)TradesTable.Status));
+
+						new Position(exchange, symbol, signal, date, entry_price, quantity, true)
+						{
+							OrderId = orderid,
+							AccountType = account_type,
+							Commission = commission,
+							Commission_Asset = commission_asset,
+							Status = status,
+							ExitOrderId = exit_orderid,
+							Date = date,
+							Id = id,
+							FilledQuantity = filled_quantity
+						};
+					}
+					catch(Exception ex)
+					{
+						Program.LogError(ex.Message);
+					}
+				}
+			}
 		}
 	}
 
@@ -115,7 +224,7 @@ namespace MarketBot
 			switch (ex)
 			{
 				case Exchanges.Binance:
-					BinanceAccount.LoadPositions();
+					Position.LoadFromDb();
 					break;
 			}
 		}
@@ -213,7 +322,7 @@ namespace MarketBot
 						pos.Type == SignalType.Long?Binance.Net.Enums.OrderSide.Buy:throw new Exception("NOT SUPPORTED YET"), 
 						BinanceOrders.GetOrderType(type), 
 						0, 
-						pos.Quantity,
+						pos.DesiredQuantity,
 						pos.Entry);
 					break;
 			}

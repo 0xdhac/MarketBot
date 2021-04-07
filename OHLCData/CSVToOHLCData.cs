@@ -127,6 +127,7 @@ namespace MarketBot
 					period.Low = decimal.Parse(record.Field4);
 					period.Close = decimal.Parse(record.Field5);
 					period.Volume = decimal.Parse(record.Field6);
+					period.CloseTime = new DateTime(1970, 1, 1).AddMilliseconds(double.Parse(record.Field7));
 
 					list.Add(period);
 				}

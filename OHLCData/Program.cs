@@ -1,60 +1,36 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Binance.Net;
-using Binance.Net.Enums;
-using Binance.Net.Objects;
 using Binance.Net.Objects.Spot;
 using CryptoExchange.Net.Authentication;
 using CryptoExchange.Net.Logging;
 using System.IO;
-using MarketBot.indicators;
 using MarketBot.tools;
-using MarketBot.exchanges.binance;
-using System.Drawing;
-using System.Configuration;
-using MarketBot.interfaces;
 using NLog;
-using MarketBot.strategies.condition;
-using MarketBot.strategies.signals;
-using Newtonsoft.Json;
 using Skender.Stock.Indicators;
+using MySql.Data.MySqlClient;
+using System.Configuration;
 
 namespace MarketBot
 {
 	class Program
 	{
-		static void SetupLogger()
-		{
-			var config = new NLog.Config.LoggingConfiguration();
-
-			// Targets where to log to: File and Console
-			var logfile = new NLog.Targets.FileTarget("logfile") { FileName = "./logs/log.txt" };
-
-			// Rules for mapping loggers to targets         
-			config.AddRuleForAllLevels(logfile);
-
-			// Apply config           
-			LogManager.Configuration = config;
-		}
-
-		public static void Log(string log)
-		{
-			LogManager.GetCurrentClassLogger().Info(log);
-		}
-		
-		public static void LogError(string log)
-		{
-			LogManager.GetCurrentClassLogger().Error(log);
-		}
+		public static MySqlConnection Connection;
 
 		static void Main(string[] args)
 		{
+			// Make sure database is connected
+			if (!ConnectSQL())
+			{
+				Console.ReadKey();
+				return;
+			}
+				
+
 			// Initialize logger settings
 			SetupLogger();
-
+			
 			string api_key = ConfigurationManager.AppSettings["BINANCE_API_KEY"];
 			string secret_key = ConfigurationManager.AppSettings["BINANCE_SECRET_KEY"];
 
@@ -91,9 +67,8 @@ namespace MarketBot
 			//new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.ThirtyMinute, 0, null);
 
 			//SymbolData s = new SymbolData(Exchanges.Localhost, "./klines/")
-			BinanceAnalyzer.Run("USDT$", OHLCVInterval.ThirtyMinute, false);
-
-			
+			BinanceAnalyzer.RunReplays("USDT$", OHLCVInterval.ThirtyMinute);
+			//BinanceAnalyzer.DownloadKlines("USDT$", OHLCVInterval.OneDay);
 
 
 			while (true)
@@ -105,6 +80,49 @@ namespace MarketBot
 					Console.WriteLine($"- Command not found: {command}");
 				}
 			}
+		}
+
+		static bool ConnectSQL()
+		{
+			var cs = GetConfigSetting("CONNECTION_STRING");
+
+			Connection = new MySqlConnection(cs);
+
+			try
+			{
+				Connection.Open();
+				return true;
+			}
+			catch(Exception ex)
+			{
+				Console.WriteLine(cs);
+				LogError(ex.Message);
+				return false;
+			}
+		}
+
+		static void SetupLogger()
+		{
+			var config = new NLog.Config.LoggingConfiguration();
+
+			// Targets where to log to: File and Console
+			var logfile = new NLog.Targets.FileTarget("logfile") { FileName = "./logs/log.txt" };
+
+			// Rules for mapping loggers to targets         
+			config.AddRuleForAllLevels(logfile);
+
+			// Apply config           
+			LogManager.Configuration = config;
+		}
+
+		public static void Log(string log)
+		{
+			LogManager.GetCurrentClassLogger().Info(log);
+		}
+		
+		public static void LogError(string log)
+		{
+			LogManager.GetCurrentClassLogger().Error(log);
 		}
 
 		private static void TestDeleteLater(SymbolData data)

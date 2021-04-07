@@ -25,10 +25,17 @@ Create an oco order based on current available quantity
 Fitness parameters
 - (Average win time / Average loss time): The lower the better
 - (Profitability)
-- Fitness = (Profitability|Sharpe Ratio) / (1 - (Average win time / Average loss time))
+- Fitness = (Profitability|Sharpe Ratio) / (1 - (Average loss time / Average win time))
+- Fitness = (Profitability) / (1 / (Average win time / Average loss time))
 if(Profitability < 1.05)
 	return 0;
 else
 	return (Profitability|Sharpe Ratio) / (Average loss time / Average win time)
 
+	Auto exit trades based on time and when they are at or above exit price (7 days or so)
 Use GeneticSharp and Skender.Stock.Indicators
+
+foreach(var strat in Entry_Strategies)
+{
+	
+}

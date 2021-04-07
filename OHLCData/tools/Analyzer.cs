@@ -9,6 +9,7 @@ using System.Security.Cryptography;
 using System.IO;
 using MarketBot.exchanges.binance;
 using Ionic.Zip;
+using MarketBot.exchanges.localhost;
 
 namespace MarketBot.tools
 {
@@ -20,7 +21,7 @@ namespace MarketBot.tools
 		 */
 
 		// Download folder for symbol data
-		private static string DownloadPath = @"./klines/";
+		private static string DownloadPath = Program.GetConfigSetting("KLINE_DATA_FOLDER");//@"./klines/";
 
 		// Url building vars
 		private static string BaseUrl = @"https://data.binance.vision/data";
@@ -28,51 +29,46 @@ namespace MarketBot.tools
 		private static string DateRange = @"monthly";
 		private static string DataType = @"klines";
 		private static HList<OHLCVPeriod> Market = null;
+		private static List<Replay> Replays = new List<Replay>();
+		private const int MinPeriods = 1600;
+		private static Balance Balance = new Balance()
+		{
+			Starting = 10000,
+			Available = 10000,
+			Total = 10000
+		};
+
+		private static BetSizer BetSizer = new BetSizer()
+		{
+			BetPercent = (decimal)0.15,
+			ResizeEvery = 1,
+			Balance = Balance
+		};
 
 		// Analyzer settings
 		private static List<string> Pairs = null;
-		private static OHLCVInterval Interval;
 
-
-		static decimal total_profit = 0;
-		static decimal total_profitability = 0;
-		static int num_symbols = 0;
-
-		public static void Run(string pattern, OHLCVInterval interval, bool download = true)
+		public static void LoadMarket(OHLCVInterval interval)
 		{
-			Console.WriteLine("Running Analyzer");
-
-			Interval = interval;
-			Pairs = BinanceMarket.GetTradingPairs(pattern, true);
-			if(download)
-				DownloadKlines(pattern, interval);
-
-			RunReplays();
-			//LoadMarket();
-			
-		}
-
-		public static void LoadMarket()
-		{
-			var file = BuildFile("BTCUSDT", OHLCVInterval.ThirtyMinute, DateTime.Now.AddMonths(-1));
-			new SymbolData("BTCUSDT", new string[] { DownloadPath + file + ".csv" }, OHLCVInterval.ThirtyMinute, CSVConversionMethod.BinanceVision, MarketLoaded);
+			var file = BuildFile("BTCUSDT", interval, DateTime.Now.AddMonths(-1));
+			new SymbolData("BTCUSDT", new string[] { DownloadPath + file + ".csv" }, interval, CSVConversionMethod.BinanceVision, MarketLoaded);
 		}
 
 		public static void MarketLoaded(SymbolData data)
 		{
 			Market = data.Data.Periods;
-			PrintBetas();
+			PrintBetas(OHLCVInterval.ThirtyMinute);
 		}
 
-		public static void PrintBetas()
+		public static void PrintBetas(OHLCVInterval interval)
 		{
 			foreach(var pair in Pairs)
 			{
-				var file = DownloadPath + BuildFile(pair, OHLCVInterval.ThirtyMinute, DateTime.Now.AddMonths(-1)) + ".csv";
+				var file = DownloadPath + BuildFile(pair, interval, DateTime.Now.AddMonths(-1)) + ".csv";
 				if (!File.Exists(file))
 					continue;
 
-				SymbolData sym = new SymbolData(pair, new string[] { file }, OHLCVInterval.ThirtyMinute, CSVConversionMethod.BinanceVision, ThrowAwayCallback);
+				SymbolData sym = new SymbolData(pair, new string[] { file }, interval, CSVConversionMethod.BinanceVision, ThrowAwayCallback);
 
 				if (sym.Data.Periods.Count > 0)
 				{
@@ -93,67 +89,121 @@ namespace MarketBot.tools
 
 		private static void ThrowAwayCallback(SymbolData obj)
 		{
-			
+			throw new NotImplementedException();
 		}
 
-		public static void RunReplays()
+		public static void RunReplays(string pattern, OHLCVInterval interval)
 		{
+			if (Pairs == null)
+				Pairs = BinanceMarket.GetTradingPairs(pattern, true);
+
+			// Load kline data into new replay objects
+			Program.Print("Loading replay kline data..");
 			foreach(var pair in Pairs)
 			{
-				new Replay(Exchanges.Localhost, pair, Interval, 0, null, Results);
-				Position.Positions.RemoveAll(s => true);
+				if (Blacklist.IsBlacklisted(Exchanges.Binance, pair))
+					continue;
+
+				var files = BuildFileList(pair, interval, DateTime.UtcNow.AddMonths(-13), DateTime.UtcNow.AddMonths(-1));
+				//var files = BuildFileList(pair, interval, new DateTime(2017, 7, 1), new DateTime(2018, 12, 1));
+
+				var replay = new Replay(pair, files, interval);
+				if(replay.Symbol.Periods < MinPeriods)
+				{
+					continue;
+				}
+				
+				Console.Write(".");
+
+				Replays.Add(replay);
 			}
 
-			Console.WriteLine($"Results Avg: {(total_profit / num_symbols):.00}");
-			Console.WriteLine($"Results Prof: {(total_profitability / num_symbols):.00}");
-		}
+			Console.WriteLine();
 
-		public static void Results(ReplayResults r)
-		{
-			total_profit += r.EndTotal;
-			total_profitability += r.Profitability;
-			num_symbols++;
-
-			Console.WriteLine($"{r.Symbol}: {r.Profitability:.00} ({r.Trades}) ${r.EndTotal:.00}");
-		}
-
-		public static void WhitelistResults(ReplayResults r)
-		{
-			// Good trade: Profitability >= 1.3
-			// Trades >= 50
-
-			decimal min_profitability = (decimal)1.3;
-			int min_trades = 50;
-
-			if(r.Profitability >= min_profitability &&
-				r.Trades >= min_trades)
+			// Apply indicators/strategies
+			Program.Print("Applying indicators..");
+			foreach(var replay in Replays)
 			{
-				total_profit += r.EndTotal;
-				total_profitability += r.Profitability;
-				num_symbols++;
-
-				Console.WriteLine($"{r.Symbol}: {r.Profitability:.00} ({r.Trades}) ${r.EndTotal:.00}");
+				replay.Balance = Balance;
+				replay.BetSizer = BetSizer;
+				replay.BetSizer.UpdateBetAmount();
+				replay.SetupStrategies();
+				replay.OnReplayFinished += ReplayFinished;
+				Console.Write(".");
 			}
+			Console.WriteLine();
+
+			Program.Print("Running replays..");
+			while(Replays.TrueForAll(r => r.Finished) == false)
+			{
+				foreach (var replay in Replays)
+				{
+					if (replay.Finished)
+						continue;
+
+					replay.RunNextPeriod();
+				}
+			}
+
+			Console.WriteLine();
+			Console.WriteLine($"Starting amount: ${Balance.Starting:.00}, Ending amount: ${Balance.Total:.00}");
+			Console.WriteLine($"GOA: {(Balance.Total - Balance.Starting) / (Balance.Starting) * 100:.00}%");
+
+			var results = Replays.Select(r => r.Results()).ToList();
+			foreach(var result in results)
+			{
+				//if (!result.Profitability.HasValue || result.Profitability < (decimal)1.3)
+				//	Console.WriteLine(result.Symbol);
+				//Console.WriteLine($"[{result.Symbol}] Profitability: {result.Profitability:.00}");
+			}
+			/*
+			foreach (var replay in Replays)
+			{
+				var result = replay.Results();
+
+				if (result.Profitability < (decimal)1.3)
+					Console.WriteLine($"{replay.Symbol.Symbol}");
+			}
+			*/
 		}
 
-		public static void BlacklistResults(ReplayResults r)
+		private static void ReplayFinished(object sender, EventArgs e)
 		{
-			// Good trade: Profitability >= 1.3
-			// Trades >= 50
+			Console.Write(".");
+		}
 
-			decimal max_profitability = (decimal)1.3;
-			int max_trades = 30;
+		public static string[] BuildFileList(string symbol, OHLCVInterval interval, DateTime start, DateTime end)
+		{
+			var path = DownloadPath;
+			//{end_date.Year}-{end_date.Month:00}";
 
-			if (r.Profitability < max_profitability ||
-				r.Trades < max_trades)
+			List<string> files = new List<string>();
+			DateTime date = start;
+			bool FoundOneFile = false;
+			while(date <= end)
 			{
-				total_profit += r.EndTotal;
-				total_profitability += r.Profitability;
-				num_symbols++;
+				var file = DownloadPath + BuildFile(symbol, interval, date) + ".csv";
+				date = date.AddMonths(1);
 
-				//Console.WriteLine($"{r.Symbol}: {r.Profitability:.00} ({r.Trades}) ${r.EndTotal:.00}");
-				Console.WriteLine($"{r.Symbol}");
+				if (!File.Exists(file)) // If file doesn't exist
+				{
+					if (FoundOneFile) // If a file has previously been added to the list and now we suddenly have a file that doesn't exist, end the function to prevent gaps in kline data
+					{
+						break;
+					}
+					else
+					{
+						continue;
+					}
+				}
+				
+
+				FoundOneFile = true;
+
+				files.Add(file);
 			}
+
+			return files.ToArray();
 		}
 
 		// Download candle stick data from data.binance.vision
@@ -161,16 +211,19 @@ namespace MarketBot.tools
 		{
 			if(Pairs == null)
 			{
-				throw new NullReferenceException("Null reference to 'Pairs' object.");
+				Pairs = BinanceMarket.GetTradingPairs(pattern, true);
 			}
 
-			foreach(var pair in Pairs)
+			Program.Print($"Downloading kline data for all symbols matching pattern {pattern}");
+			foreach (var pair in Pairs)
 			{
-				Console.WriteLine($"Downloading {pair} : {interval}");
+				
 				var list = DownloadZipFiles(pair, interval);
 				foreach(var file in list)
 					Extract(file);
+				Console.Write(".");
 			}
+			Console.WriteLine();
 		}
 
 		public static List<List<byte>> DownloadZipFiles(string symbol, OHLCVInterval interval)
@@ -186,8 +239,9 @@ namespace MarketBot.tools
 				{
 					date = date.AddMonths(-1);
 					var file = BuildFile(symbol, interval, date);
-
-					if(!File.Exists(DownloadPath + file + ".csv"))
+					var file_with_path = DownloadPath + file + ".csv";
+					
+					if (!File.Exists(file_with_path))
 					{
 						using (var client = new WebClient())
 						{

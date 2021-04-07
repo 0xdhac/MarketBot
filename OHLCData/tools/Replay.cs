@@ -4,14 +4,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Binance.Net.Interfaces;
-using MarketBot.strategies.signals;
-using MarketBot.interfaces;
-using MarketBot.strategies.position;
 using System.IO;
 using MarketBot.tools;
-using MarketBot.strategies.condition;
 using MarketBot.indicators;
+using MarketBot.skender_strategies.exit_strategy;
+using MarketBot.skender_strategies.entry_signals;
+using MarketBot.skender_strategies.price_setter;
+using MarketBot.skender_strategies.entry_conditions;
 using Skender.Stock.Indicators;
+using System.Diagnostics;
+using MarketBot.skender_strategies;
+using MarketBot.exchanges.localhost;
 
 namespace MarketBot
 {
@@ -23,159 +26,169 @@ namespace MarketBot
 	}
 	class Replay
 	{
-		public List<EntrySignaler> Current_Strategy = new List<EntrySignaler>();
-		public RiskStrategy Exit_Strategy;
+		public List<BaseStrategy> Entry_Strategy = new List<BaseStrategy>();
+		public PriceSetter Risk_Setter;
+		//public PriceSetter Reward_Setter;
+		public List<BaseCondition> Entry_Conditions = new List<BaseCondition>();
+		public List<ExitStrategy> Exit_Strategies = new List<ExitStrategy>();
 		public SymbolData Symbol;
 
 		private int Wins = 0;
 		private int Losses = 0;
-		private decimal RiskProfitRatio = (decimal)3;
 		private int Trades = 0;
 		private int TradePeriodsTotal = 0;
-		private decimal AccountTotal = 10000;
-		private decimal AccountTotal_Start = 0;
-		private decimal BetAmount = 0;
-		private decimal BetPct = (decimal)0.05;
-		private int ResizeEvery = 1;
-		private BetResizeMode ResizeMode = BetResizeMode.Counter;
-		private int SlicesUsed = 0;
-		private decimal TotalRisk = 0;
-		private TimeSpan TimeInTrades = new TimeSpan();
-		private OHLCVInterval Interval;
-		private Action<ReplayResults> Callback = null;
-		IEnumerable<PivotPointsResult> Pivots;
+		public Balance Balance = new Balance()
+		{
+			Total = 10000,
+			Starting = 10000,
+			Available = 10000
+		};
 
-		public Replay(Exchanges exchange, string symbol, OHLCVInterval interval, int periods, DateTime? start, Action<ReplayResults> callback = null)
+		public BetSizer BetSizer = new BetSizer()
+		{
+			BetPercent = (decimal)0.05,
+			ResizeEvery = 1,
+		};
+
+		private decimal TotalRisk = 0;
+		private decimal TotalProfit = 0;
+		private TimeSpan TimeInLosing = new TimeSpan();
+		private TimeSpan TimeInWinning = new TimeSpan();
+		private TimeSpan TimeInTrades = new TimeSpan();
+		public int NextPeriod
+		{
+			get;
+			private set;
+		} = 0;
+
+		public bool Finished
+		{
+			get;
+			private set;
+		} = false;
+
+		public EventHandler OnReplayFinished = null;
+		private OHLCVInterval Interval;
+		private bool BuyInPos = bool.Parse(Program.GetConfigSetting("BUY_WHEN_IN_POSITION"));
+
+		public Replay(string symbol, OHLCVInterval interval)
 		{
 			Interval = interval;
-			//Console.WriteLine($"Starting replay/collecting symbol data for {symbol} on exchange {exchange}.");
-			if (exchange == Exchanges.Localhost)
+			BetSizer.Balance = Balance;
+			BetSizer.UpdateBetAmount();
+			var pattern = symbol + "-" + BinanceAnalyzer.GetKlineInterval(interval) + "*";
+			var files = Directory.GetFiles(Program.GetConfigSetting("KLINE_DATA_FOLDER"), pattern).OrderBy(v1 => v1).ToArray();
+
+			if(files.Length == 0)
 			{
-				Callback = callback;
-				var pattern = symbol + "-" + BinanceAnalyzer.GetKlineInterval(interval) + "*";
-
-				var files = Directory.GetFiles("./klines/", pattern);
-
-				if(files.Length == 0)
-				{
-					Console.WriteLine($"No files for symbol {symbol} found on interval {interval}.");
-					return;
-				}
-				files.OrderBy((v1) => v1);
-
-				new SymbolData(symbol, files, interval, CSVConversionMethod.BinanceVision, OnSymbolLoaded);
+				Console.WriteLine($"No files for symbol {symbol} found on interval {interval}.");
+				return;
 			}
-			else
-			{
-				new SymbolData(exchange, interval, symbol, periods, OnSymbolLoaded, false, start);
-			}
+
+			Symbol = new SymbolData(symbol, files, interval, CSVConversionMethod.BinanceVision);
 		}
 
-		void OnSymbolLoaded(SymbolData data)
+		public Replay(string symbol, string[] files, OHLCVInterval interval)
 		{
-			ExchangeTasks.UpdateExchangeInfo(Exchanges.Binance);
-			Symbol = data;
-			Exit_Strategy = new ATRRisk(data);
+			Interval = interval;
+			BetSizer.Balance = Balance;
+			BetSizer.UpdateBetAmount();
+			Symbol = new SymbolData(symbol, files, interval, CSVConversionMethod.BinanceVision);
+		}
 
-			//Current_Strategy.Add(new CMFCrossover(Symbol, 55, 21));
-			//Current_Strategy.Add(new MACDCrossover(Symbol, 12, 26, 9));
-			Current_Strategy.Add(new Star(Symbol));
-			//Current_Strategy.Add(new ThreelineStrike(Symbol));
-			//Current_Strategy.Add(new DICrossover(Symbol));
-			//Current_Strategy.Add(new EMATouch(Symbol, 300));
-
-			EMACondition cond1 = new EMACondition(data, 800);
-			//BetweenEMACondition cond1 = new BetweenEMACondition(data, 200, 50);
-			//EMAOverEMACondition cond1 = new EMAOverEMACondition(Symbol, 800, 300);
-			ADXCondition cond2 = new ADXCondition(Symbol, 14);
-			CMFCondition cond3 = new CMFCondition(Symbol, 21);
-			//RSICondition cond3 = new RSICondition(Symbol, false, 14);
-			//PivotPointType.
-			foreach(var strat in Current_Strategy)
+		public bool RunNextPeriod()
+		{
+			if (Finished)
 			{
-				strat.Add(cond1);
-				strat.Add(cond2);
-				//strat.Add(cond3);
+				throw new Exception("Can't run next replay period. Replay is finished");
 			}
 
-			Pivots = Skender.Stock.Indicators.Indicator.GetPivotPoints(data.Data.Periods, PeriodSize.Day);
+			var positions = Position.FindPositions(Exchanges.Localhost, Symbol.Symbol);
+			if (NextPeriod >= Symbol.Data.Periods.Count)
+			{
+				foreach(var pos in positions)
+				{
+					//Console.WriteLine($"[{Symbol.Symbol}] Available(Close) += {pos.Entry * pos.Quantity:.00}");
+					Balance.Available += pos.Entry * pos.DesiredQuantity;
+				}
 
-			Run();
+				Position.Positions.RemoveAll(p => p.Symbol == Symbol.Symbol);
+				Finished = true;
+
+				if(OnReplayFinished != null)
+					OnReplayFinished(this, null);
+
+				return false;
+			}
+
+			foreach (var strat in Entry_Strategy)
+			{
+				var signal = strat.Run(NextPeriod);
+				if (signal != SignalType.None)
+				{
+					OnReplaySignal(NextPeriod, signal);
+				}
+			}
+
+			foreach (var position in positions)
+			{
+				CheckForExit(NextPeriod, position);
+			}
+
+			NextPeriod++;
+
+			return true;
 		}
 
 		public void Run()
 		{
-			AccountTotal_Start = AccountTotal;
-			BetAmount = AccountTotal * BetPct;
-			bool buy_in_pos = bool.Parse(Program.GetConfigSetting("BUY_WHEN_IN_POSITION"));
-			for (int period = 0; period < Symbol.Data.Periods.Count; period++)
+			while (RunNextPeriod());
+
+			ReplayResults r = Results();
+			
+			TimeSpan days = new TimeSpan(ExchangeTasks.GetOHLCVIntervalTimeSpan(Interval).Ticks * Symbol.Data.Periods.Count);
+
+			Console.WriteLine("--------------------------------");
+			PaddedPrint("Symbol", Symbol.Symbol);
+			PaddedPrint("Interval", $"{Symbol.Interval}");
+			PaddedPrint("Periods", $"{Symbol.Data.Periods.Count} ({days.TotalDays:.00}d)");
+			PaddedPrint("Entry Strategy", Entry_Strategy.ToString());
+			//PaddedPrint("Exit Strategy", Exit_Strategy.ToString());
+			PaddedPrint("Average Trade Periods", $"{(TradePeriodsTotal / (float)Trades):.00}");
+			PaddedPrint("Time In Trades", $"{TimeInTrades.TotalDays:.00}d");
+			//PaddedPrint("Average Risk", $"{(TotalRisk / (trades) * 100):0.0000}%");
+			PaddedPrint("Wins", $"{Wins}");
+			PaddedPrint("Losses", $"{Losses}");
+			PaddedPrint("Profitability", $"{r.Profitability:.00}");
+			PaddedPrint("AccountTotal@Start", $"${Balance.Starting}");
+			PaddedPrint("AccountTotal@End", $"${Balance.Total:.00}");
+			Console.WriteLine("--------------------------------");
+		}
+
+		public ReplayResults Results()
+		{
+			decimal profitratio;
+			decimal? profitability = null;
+
+			if (Losses != 0 && Wins != 0)
 			{
-				List <Position> position_list = Position.FindPositions(Symbol); //<-- this function might need to have multiple definitions. One that takes in SymbolData object, and one that takes in symbol info, like Exchange and Symbol name
-
-				if (position_list.Count > 0)
-				{
-					foreach (var position in position_list)
-					{
-						CheckForExit(Symbol, period, position);
-					}
-
-					if (true)
-					{
-						foreach (var strat in Current_Strategy)
-						{
-							if (position_list.Count == 0 || true)
-							{
-								strat.Run(period, OnReplaySignal);
-							}
-						}
-					}
-				}
-				else
-				{
-					foreach (var strat in Current_Strategy)
-					{
-						if (position_list.Count == 0 || true)
-						{
-							strat.Run(period, OnReplaySignal);
-						}
-					}
-				}
+				profitratio = (TotalProfit / Wins) / (TotalRisk / Losses);
+				profitability = (Wins / (decimal)Losses) / (1 / profitratio);
 			}
 
-			decimal profitability = (Losses == 0) ? -1 : ((decimal)Wins / (decimal)Losses) / ((decimal)1 / (decimal)RiskProfitRatio);
-			int trades = (Wins + Losses == 0) ? 1 : Wins + Losses;
-			TimeSpan days = new TimeSpan((ExchangeTasks.GetOHLCVIntervalTimeSpan(Interval).Ticks * Symbol.Data.Periods.Count));
-			ReplayResults r = new ReplayResults()
+			return new ReplayResults()
 			{
 				Profitability = profitability,
 				Symbol = Symbol.Symbol,
 				Trades = Wins + Losses,
-				EndTotal = AccountTotal,
+				EndTotal = Balance.Total,
+				StartTotal = Balance.Starting,
+				TimeInLosingTrades = TimeInLosing,
+				TimeInWinningTrades = TimeInWinning,
+				TimeInTrades = TimeInTrades,
+				Wins = Wins,
+				Losses = Losses
 			};
-
-			if(Callback != null)
-			{
-				Callback(r);
-			}
-			else
-			{
-				Console.WriteLine("--------------------------------");
-				PaddedPrint("Symbol", Symbol.Symbol);
-				PaddedPrint("Interval", $"{Symbol.Interval}");
-				PaddedPrint("Periods", $"{Symbol.Data.Periods.Count} ({days.TotalDays:.00}d)");
-				PaddedPrint("Entry Strategy", Current_Strategy.ToString());
-				PaddedPrint("Exit Strategy", Exit_Strategy.ToString());
-				PaddedPrint("Ratio", $"1:{(float)RiskProfitRatio}");
-				PaddedPrint("Average Trade Periods", $"{((float)TradePeriodsTotal / (float)Trades):.00}");
-				PaddedPrint("Time In Trades", $"{TimeInTrades.TotalDays:.00}d");
-				PaddedPrint("Average Risk", $"{((TotalRisk / (trades)) * 100):0.0000}%");
-				PaddedPrint("Wins", $"{Wins}");
-				PaddedPrint("Losses", $"{Losses}");
-				PaddedPrint("Profitability", $"{profitability:.00}");
-				PaddedPrint("AccountTotal@Start", $"${AccountTotal_Start}");
-				PaddedPrint("AccountTotal@End", $"${AccountTotal:.00}");
-				Console.WriteLine("--------------------------------");
-			}
 		}
 
 		void PaddedPrint(string description, string value)
@@ -185,182 +198,225 @@ namespace MarketBot
 			Console.WriteLine($"{padded_description}{value}");
 		}
 
-		void OnReplaySignal(SymbolData data, int period, SignalType signal)
+		public void SetupStrategies()
 		{
+			var periods = Symbol.Data.Periods;
+
+			try
+			{
+				Risk_Setter = new ATRRisk(periods, true);
+				//Risk_Setter = new PercentBasedRisk(periods, (decimal)0.02);
+				//Exit_Strategy.Add()
+				//Exit_Strategy = new TrailingStopLossExit(periods, Risk_Setter.GetPrice);
+				//Exit_Strategy = new ADXExit(periods); // OnPeriodClose
+				//Exit_Strategy = new EMAExit(periods, 50);
+				Entry_Strategy.Add(new MACDCrossover(periods)); //*
+				Entry_Strategy.Add(new Star(periods)); //*
+				Entry_Strategy.Add(new DICrossover(periods)); //*
+				Entry_Strategy.Add(new ThreelineStrike(periods));
+
+				Entry_Conditions.Add(new EMACondition(periods, 10));
+				//Entry_Conditions.Add(new RSICondition(periods, 80, 40));
+				//Entry_Conditions.Add(new ADXCondition(periods, 25));
+				Exit_Strategies.Add(new RSIExit(periods, 78, 30, false));
+				Exit_Strategies.Add(new EMAExit(periods, 800));
+				//Exit_Strategies.Add(new ADXExit(periods));
+			}
+			catch (Exception e)
+			{
+				Console.WriteLine(e.Message);
+			}
+		}
+
+		void OnReplaySignal(int period, SignalType signal)
+		{
+			if(BuyInPos == false)
+			{
+				foreach(var pos in Position.Positions)
+				{
+					if (pos.Symbol == Symbol.Symbol)
+						return;
+				}
+			}
+
+			// Disallow shorting for now
 			if (signal == SignalType.Short)
 				return;
 
-			//signal = SignalType.Short;
-
-			//Console.WriteLine(data.Data[period].OpenTime);
-
-			decimal entry_price = data.Data[period].Close;
-			decimal risk_price = Exit_Strategy.GetRiskPrice(period, signal);
-			decimal profit = RiskProfitRatio;
-
-			var pp = Pivots.ToList();
-			decimal support = pp[period].S1.Value;
-			decimal resistance = pp[period].R2.Value;
-			ExchangeTasks.GetTickSize(Exchanges.Binance, data.Symbol, out decimal tick_size);
-			decimal tick_scale = 10;
-			if (risk_price > support)
+			// Check to make sure signal also passes required entry conditions
+			foreach (var condition in Entry_Conditions)
 			{
-				risk_price = support - (tick_size * tick_scale);
+				if(!condition.GetAllowed(period).Contains(signal))
+				{
+					return;
+				}
 			}
+
+			List<ExitStrategy> exits = new List<ExitStrategy>()
+			{
+				//new OCOExit(Symbol.Data.Periods, Risk_Setter.GetPrice, 3),
+				//new TimeLimitExit(Symbol.Data.Periods, new TimeSpan(7, 0, 0, 0), Symbol[period].CloseTime, true),
+				//new StoplossExit(Symbol.Data.Periods, Risk_Setter.GetPrice)
+			};
+
+			exits.AddRange(Exit_Strategies);
+
+			foreach(var strat in exits)
+			{
+				strat.Update(period, signal);
+
+				if (strat.ShouldExit(period, signal, out decimal scratch))
+					return;
+			}
+
+			// Clamp bet amount to not be higher than total balance. And don't continue the signal if we have no money left at all
+			if (!GetBetAmount(out decimal bet_amount))
+				return;
+
+			// Don't enter trade if we don't have the 'Available' balance to trade with
+			if (bet_amount > Balance.Available)
+				return;
+
+			/*
+			bool use_max_risk = false;
+			double max_risk = 0.09;
+			bool use_min_risk = false;
+			double min_risk = 0.02;
+			bool use_max_profit = false;
+			double max_profit = 0.2;
+			bool use_min_profit = false;
+			double min_profit = 0.06;
+
+			if (use_max_risk && GetPctDiff((double)risk_price, (double)entry_price) > max_risk)
+				return;
+
+			if (use_min_risk && GetPctDiff((double)risk_price, (double)entry_price) < min_risk)
+				return;
+
+			if (use_max_profit && GetPctDiff((double)profit_price, (double)entry_price) > max_profit)
+				return;
+
+			if (use_min_profit && GetPctDiff((double)profit_price, (double)entry_price) < min_profit)
+				return;
+
+			if (!IsPositionValid(entry_price, risk_price, profit_price))
+				throw new Exception($"Invalid position: Entry: {entry_price}, Risk: {risk_price}, Profit: {profit_price}");
+
+			if (!GetBetAmount(out decimal bet_amount))
+				return;
 
 			TotalRisk += (decimal)Math.Abs(((double)risk_price - (double)entry_price) / (double)entry_price);
+			TotalProfit += (decimal)Math.Abs(((double)profit_price - (double)entry_price) / (double)entry_price);
+			*/
 
-			decimal profit_price = ((entry_price - risk_price) * profit) + entry_price;
-
-			if(profit_price <= resistance)
+			Balance.Available -= bet_amount;
+			//Console.WriteLine($"[{Symbol.Symbol}] Available(Entry) -= {bet_amount:.00}");
+			decimal entry = Symbol[period].Close;
+			new Position(Symbol.Exchange, Symbol.Symbol, signal, Symbol[period].CloseTime, entry, bet_amount / entry, false)
 			{
-				profit_price = resistance - (tick_size * tick_scale);
-			}
-
-			if(Math.Abs(((double)profit_price - (double)entry_price) / (double)entry_price) > 0.2)
-			{
-				return;
-			}
-
-			if (entry_price - risk_price == 0)
-				return;
-			
-			decimal bet_amount = BetAmount > AccountTotal ? AccountTotal : BetAmount;
-
-			if (bet_amount <= 0)
-			{
-				return;
-			}
-
-			new Position(data, period, signal, entry_price, risk_price, profit_price, bet_amount / entry_price, false);
+				ExitStrategies = exits
+			};
 		}
 
-		public void ExitCallback(SymbolData data, Position pos, int period, bool TradeWon)
+		private double GetPctDiff(double one, double two)
 		{
-			if (TradeWon)
-				Wins++;
-			else
-				Losses++;
+			return Math.Abs((one - two) / two);
+		}
 
+		private bool IsPositionValid(decimal entry, decimal risk, decimal profit)
+		{
+			return risk < entry && entry < profit;
+		}
+
+		private bool GetBetAmount(out decimal bet_amount)
+		{
+			bet_amount = BetSizer.BetAmount > Balance.Total ? Balance.Total : BetSizer.BetAmount;
+
+			return bet_amount > 0;
+		}
+
+		private bool WonTrade(decimal entry, decimal exit, SignalType signal)
+		{
+			switch (signal)
+			{
+				case SignalType.Long:
+					if (exit > entry)
+						return true;
+					else
+						return false;
+				case SignalType.Short:
+					if (exit < entry)
+						return true;
+					else
+						return false;
+			}
+
+			throw new ArgumentException("Invalid signal type in", "pos");
+		}
+
+		public void ExitCallback(int period, Position pos, decimal exit)
+		{
+			Debug.Assert(Finished == false);
+
+			if (!Position.Positions.Contains(pos))
+				return;
+
+			decimal entry = pos.Entry;
+			bool TradeWon = WonTrade(entry, exit, pos.Type);
 			Trades++;
+			TimeSpan TradeTime = Symbol[period].CloseTime - pos.Date;
+			TimeInTrades += TradeTime;
 
-			int periods = period - pos.Period;
-			TradePeriodsTotal += periods;
+			decimal quantity = pos.DesiredQuantity;
+			decimal feepct = (decimal)0.00075; // Correct
+			decimal entryfee = quantity * feepct; // $10 / 2 = 5 The quantity I bought * 0.00075
+			decimal assetamount = quantity - entryfee;
+			decimal exitamount = (assetamount * exit) - ((assetamount * exit) * feepct); //Entry = 2, Profit = 1, Risk = 3, AssetAmount = 5. Enter at $10, Profit at $5, Risk at $15
+			
+			Balance.Available += exitamount;
+			//Console.WriteLine($"[{Symbol.Symbol}] Available(Exit) += {exitamount:.00}");
 
-			TimeInTrades += new TimeSpan(ExchangeTasks.GetOHLCVIntervalTimeSpan(Interval).Ticks * periods);
-
-
-			//$10 / 2LTC 5 * 0.0075
-			decimal Quantity = pos.Quantity;
-			decimal FeePct = (decimal)0.00075; // Correct
-			decimal EntryFee = Quantity * FeePct; // $10 / 2 = 5 The quantity I bought * 0.00075
-			decimal AssetAmount = Quantity - EntryFee;
-			decimal ProfitAmount = (AssetAmount * pos.Profit) - ((AssetAmount * pos.Profit) * FeePct); //Entry = 2, Profit = 1, Risk = 3, AssetAmount = 5. Enter at $10, Profit at $5, Risk at $15
-			decimal RiskAmount = (AssetAmount * pos.Risk) - ((AssetAmount * pos.Risk) * FeePct); // Entry = 2, Profit = 3, Risk = 1, AssetAmount = 5. Enter at $10, Profit at $15
+			if (TradeWon)
+			{
+				Wins++;
+				TotalProfit += Math.Abs(exitamount - (quantity * entry));
+				TimeInWinning += TradeTime;
+			}
+			else
+			{
+				Losses++;
+				TotalRisk += Math.Abs(exitamount - (quantity * entry));
+				TimeInLosing += TradeTime;
+			}
 
 			switch (pos.Type)
 			{
 				case SignalType.Long:
-					switch (TradeWon)
-					{
-						case true:
-							AccountTotal += ProfitAmount - (pos.Quantity * pos.Entry);
-							break;
-						case false:
-							AccountTotal += RiskAmount - (pos.Quantity * pos.Entry);
-							break;
-					}
+					Balance.Total += exitamount - (quantity * entry);
+					//Console.WriteLine($"{Symbol.Symbol} Total += {exitamount - (quantity * entry):.0000000}, Entry = {entry:.0000000}, Exit = {exit:.0000000}");
 					break;
 				case SignalType.Short:
-					switch (TradeWon)
-					{
-						case true:
-							AccountTotal += (pos.Quantity * pos.Entry) - ProfitAmount;
-							break;
-						case false:
-							AccountTotal += (pos.Quantity * pos.Entry) - RiskAmount;
-							break;
-					}
+					Balance.Total += (quantity * entry) - exitamount;
 					break;
 			}
 
 
-			if (AccountTotal < 0)
-				AccountTotal = 0;
+			if (Balance.Total < 0)
+				Balance.Total = 0;
 
-			switch (ResizeMode)
-			{
-				case BetResizeMode.Counter:
-					if (SlicesUsed++ % ResizeEvery == 0)
-						BetAmount = AccountTotal * BetPct;
-					break;
-				case BetResizeMode.Win:
-					if(TradeWon)
-						BetAmount = AccountTotal * BetPct;
-					break;
-				case BetResizeMode.Loss:
-					if (!TradeWon)
-						BetAmount = AccountTotal * BetPct;
-					break;
-				default:
-					break;
-			}
+			BetSizer.UpdateBetAmount();
 
 			pos.Close();
 		}
 
-		private void CheckForExit(SymbolData data, int period, Position pos)
+		private void CheckForExit(int period, Position pos)
 		{
-			switch (pos.Type)
+			foreach(var strat in pos.ExitStrategies)
 			{
-				case SignalType.Long:
-					if(data.Data[period].High >= pos.Profit) // Profit hit
-					{
-						if(data.Data[period].Low <= pos.Risk) // Make sure candle didn't touch risk as well
-						{
-							pos.Close();
-						}
-						else // Trade won
-						{
-							ExitCallback(data, pos, period, true);
-						}
-					}
-					else if(data.Data[period].Low <= pos.Risk) // Risk hit
-					{
-						if (data.Data[period].High >= pos.Profit) // Make sure candle didn't touch profit as well
-						{
-							pos.Close();
-						}
-						else // Trade lost
-						{
-							ExitCallback(data, pos, period, false);
-						}
-					}
-					break;
-				case SignalType.Short:
-					if (data.Data[period].Low <= pos.Profit) // Profit hit
-					{
-						if (data.Data[period].High >= pos.Risk) // Make sure candle didn't touch risk as well
-						{
-							pos.Close();
-						}
-						else // Trade won
-						{
-							ExitCallback(data, pos, period, true);
-						}
-					}
-					else if (data.Data[period].High >= pos.Risk) // Risk hit
-					{
-						if (data.Data[period].Low <= pos.Profit) // Make sure candle didn't touch profit as well
-						{
-							pos.Close();
-						}
-						else // Trade lost
-						{
-							ExitCallback(data, pos, period, false);
-						}
-					}
-					break;
+				if (strat.ShouldExit(period, pos.Type, out decimal exit_price))
+				{
+					ExitCallback(period, pos, exit_price);
+				}
 			}
 		}
 	}

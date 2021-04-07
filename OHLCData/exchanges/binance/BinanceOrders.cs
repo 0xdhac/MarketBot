@@ -127,36 +127,29 @@ namespace MarketBot.exchanges.binance
 		}
 
 		
-		public static async void PlaceOcoOrder(Position pos, int attempts, decimal quantity, params int[] ignored_errors)
+		public static async void PlaceOcoOrder(string symbol, decimal profit, decimal risk, int attempts, decimal quantity, params int[] ignored_errors)
 		{
-			if (pos.Status != PositionStatus.Filled)
-			{
-				throw new Exception("Attempt to place OCO order on unfilled order.");
-			}
-
 			using (var client = new BinanceClient())
 			{
 				decimal tick_size = 0;
-				if(!BinanceMarket.GetTickSize(pos.Symbol, out tick_size))
+				if(!BinanceMarket.GetTickSize(symbol, out tick_size))
 				{
-					throw new Exception($"Error: Symbol not found {pos.Symbol}");
+					throw new Exception($"Error: Symbol not found {symbol}");
 				}
 
 				if(tick_size == 0)
 				{
-					throw new Exception($"Error: TickSize not found for {pos.Symbol}");
+					throw new Exception($"Error: TickSize not found for {symbol}");
 				}
-				Console.WriteLine($"[{pos.Symbol}] Quantity: {pos.Quantity}, Profit: {pos.Profit}, Risk: {pos.Risk}");
+				Console.WriteLine($"[{symbol}] Quantity: {quantity}, Profit: {profit}, Risk: {risk}");
 
-				pos.Status = PositionStatus.Oco;
-				Console.WriteLine($"[{pos.Symbol}] Placing OCO order.");
 				var result = await client.Spot.Order.PlaceOcoOrderAsync(
-						pos.Symbol,
+						symbol,
 						OrderSide.Sell,
 						quantity,
-						pos.Profit,
-						pos.Risk,
-						pos.Risk - (tick_size * 10),
+						profit,
+						risk,
+						risk - (tick_size * 10),
 						null,
 						null,
 						null,
@@ -166,11 +159,10 @@ namespace MarketBot.exchanges.binance
 
 				if (!result.Success)
 				{
-					//if()
 					if(result.Error.Code == -2010)
 					{
 						var task = await client.Spot.Order.PlaceOrderAsync(
-							pos.Symbol,
+							symbol,
 							OrderSide.Sell,
 							OrderType.Market,
 							quantity,
@@ -186,17 +178,17 @@ namespace MarketBot.exchanges.binance
 
 						if (!task.Success)
 						{
-							Console.WriteLine($"[{pos.Symbol}] {task.Error}");
+							Console.WriteLine($"[{symbol}] {task.Error}");
 						}
 					}
 					else if(result.Error.Code == -1001)
 					{
-						Console.WriteLine($"[{pos.Symbol}] Error connecting to Binance API server. Retrying OCO");
-						PlaceOcoOrder(pos, attempts + 1, quantity);
+						Console.WriteLine($"[{symbol}] Error connecting to Binance API server. Retrying OCO");
+						PlaceOcoOrder(symbol, profit, risk, attempts + 1, quantity);
 					}
 					else
 					{
-						Console.WriteLine($"[{pos.Symbol}] OCO Order failed: Starting attempt #{attempts + 2}");
+						Console.WriteLine($"[{symbol}] OCO Order failed: Starting attempt #{attempts + 2}");
 						Program.LogError($"{result.Error} {result.ResponseStatusCode}");
 
 						string setting = Program.GetConfigSetting("MAX_OCO_ORDER_ATTEMPTS");
@@ -206,7 +198,7 @@ namespace MarketBot.exchanges.binance
 						{
 							if (attempts + 1 < max_attempts)
 							{
-								PlaceOcoOrder(pos, attempts + 1, quantity);
+								PlaceOcoOrder(symbol, profit, risk, attempts + 1, quantity);
 							}
 						}
 						else

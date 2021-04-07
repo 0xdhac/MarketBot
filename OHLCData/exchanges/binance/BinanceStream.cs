@@ -45,7 +45,6 @@ namespace MarketBot.exchanges.binance
 				{
 					AutoReconnect = true,
 					ReconnectInterval = TimeSpan.FromSeconds(5),
-
 				});
 
 				var result = await SocketClient.Spot.SubscribeToUserDataUpdatesAsync(key, OrderUpdate, OcoOrderUpdate, PositionUpdate, BalanceUpdate);
@@ -63,7 +62,6 @@ namespace MarketBot.exchanges.binance
 		{
 			Program.Print("Data_ActivityUnpaused");
 			RealtimeBot.Finish = false;
-
 		}
 
 		private static void Data_ActivityPaused()
@@ -89,7 +87,16 @@ namespace MarketBot.exchanges.binance
 			List<Position> ToRemove = new List<Position>();
 			Console.WriteLine($"{update.Symbol}: OrderUpdate");
 
+			foreach(var pos in Position.Positions)
+			{
+				if(update.OriginalClientOrderId == pos.OrderId ||
+					update.OriginalClientOrderId == pos.ExitOrderId)
+				{
+					pos.OrderStreamUpdate(update);
+				}
+			}
 			// Not in positions list
+			/*
 			foreach (var pos in Position.Positions)
 			{
 				if(pos.Symbol == update.Symbol) // If it matches the symbol
@@ -118,7 +125,7 @@ namespace MarketBot.exchanges.binance
 								pos.Filled			+= update.LastQuantityFilled;
 								pos.Quantity		= ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, update.Symbol, pos.Filled - pos.Commission);
 
-								BinanceOrders.PlaceOcoOrder(pos, 0, pos.Quantity);
+								BinanceOrders.PlaceOcoOrder(pos.Symbol, 0, 0, 0, pos.Quantity);
 							}
 							else if (update.Status == OrderStatus.Rejected || update.Status == OrderStatus.Expired)
 							{
@@ -131,7 +138,8 @@ namespace MarketBot.exchanges.binance
 								// Update wallet balance
 								RealtimeBot.Wallets[Exchanges.Binance].Available -= (update.Quantity * update.Price);
 
-								pos.OrderId = update.OrderId;
+								pos.OrderId = update.OriginalClientOrderId;
+								//update.Order
 								Task.Run(() => 
 								{
 									string setting = Program.GetConfigSetting("CANCEL_BUY_ORDER_AFTER_X_SECONDS");
@@ -165,8 +173,7 @@ namespace MarketBot.exchanges.binance
 									pos.Status = PositionStatus.Filled;
 									pos.Quantity = ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, update.Symbol, pos.Filled - pos.Commission);
 
-									//Program.Log($"{pos.Symbol}: {}")
-									BinanceOrders.PlaceOcoOrder(pos, 0, pos.Quantity);
+									BinanceOrders.PlaceOcoOrder(pos.Symbol, 0, 0, 0, pos.Quantity);
 								}
 							}
 						}
@@ -229,7 +236,9 @@ namespace MarketBot.exchanges.binance
 						}
 					}
 				}
+			
 			}
+			*/
 
 			foreach(var pos in ToRemove)
 			{
