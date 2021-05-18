@@ -14,17 +14,45 @@ namespace MarketBot
 	class BinanceOHLCVCollection : IExchangeOHLCVCollection
 	{
 		public string Name { get; set; }
-		public bool CollectionFailed { get; set; }
+		private bool mCollectionFailed = false;
+		public bool CollectionFailed 
+		{
+			get
+			{
+				return mCollectionFailed;
+			}
+			set
+			{
+				if(mCollectionFailed != value && value == false)
+				{
+					CollectApiOHLCV();
+				}
+				mCollectionFailed = value;
+			}
+		}
 		private bool FinishedDownloading = false;
 		public HList<OHLCVPeriod> Periods { get; set; }
 		BinanceSocketClient SocketClient = null;
 		UpdateSubscription Subscription = null;
+		public bool Connected = false;
+		public OHLCVInterval Interval { get; set; }
+		public int PeriodCount { get; set; }
+		public DateTime? StartDate { get; set; } = null;
+		public bool SubscribeToLiveUpdates { get; set; } = false;
+		public bool AutoRedownloadOnCollectionFailed { get; set; } = true;
+		private Action<IExchangeOHLCVCollection> CollectionFinishedCallback;
 
-		public BinanceOHLCVCollection(string name)
+		public BinanceOHLCVCollection(string name, OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_updates, DateTime? start = null)
 		{
 			Name = name;
-			CollectionFailed = false;
+			Interval = interval;
 			Periods = new HList<OHLCVPeriod>();
+			PeriodCount = periods;
+			SubscribeToLiveUpdates = screener_updates;
+			StartDate = start;
+			CollectionFinishedCallback = callback;
+
+			CollectApiOHLCV();
 		}
 
 		public OHLCVPeriod this[int index]
@@ -32,30 +60,22 @@ namespace MarketBot
 			get => Periods[index];
 		}
 
-		public async void CollectApiOHLCV(OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_updates, DateTime? start = null)
+		public void CollectApiOHLCV()
 		{
-			KlineInterval klv = ConvertToExchangeInterval(interval);
+			CollectionFailed = false;
+			KlineInterval klv = ConvertToExchangeInterval(Interval);
 
 			// Subscribe to updates in new information
-			if (screener_updates)
+			if (SubscribeToLiveUpdates)
 			{
-				SocketClient = new BinanceSocketClient(new BinanceSocketClientOptions() 
-				{ 
-					AutoReconnect = true, 
-					ReconnectInterval = TimeSpan.FromSeconds(5) 
-				});
-
-				var result = await SocketClient.Spot.SubscribeToKlineUpdatesAsync(Name, klv, OnKlineUpdate);
-
-				Subscription = result.Data;
-				Subscription.ConnectionLost += Subscription_ConnectionLost;
-				Subscription.ConnectionRestored += Subscription_ConnectionRestored;
+				TryToSubscribe(Interval);
 			}
 
+			var periods = PeriodCount;
 			// Download historical data
 			using (var client = new BinanceClient())
 			{
-				DateTime dt = (start.HasValue) ? start.Value : DateTime.UtcNow - ExchangeTasks.GetOHLCVIntervalTimeSpan(interval);
+				DateTime dt = (StartDate.HasValue) ? StartDate.Value : DateTime.UtcNow - ExchangeTasks.GetOHLCVIntervalTimeSpan(Interval);
 				while (periods > 0)
 				{
 					int limit = (periods >= 1000) ? 1000 : periods;
@@ -74,24 +94,80 @@ namespace MarketBot
 					else
 					{
 						Console.WriteLine($"Error collecting symbol data for {Name}{data.Error}");
-						CollectionFailed = true;
+						mCollectionFailed = true;
+					}
+				}
+
+				// If position is being redownloaded from a previous failure, re-initialize the position if the position is in a state where it 
+				if(FinishedDownloading == true && CollectionFailed == false)
+				{
+					foreach(var pos in Position.FindPositions(Exchanges.Binance, Name))
+					{
+						pos.InitPos();
 					}
 				}
 
 				FinishedDownloading = true;
 			}
 
-			callback(this);
+			CollectionFinishedCallback(this);
 		}
 
 		private void Subscription_ConnectionRestored(TimeSpan obj)
 		{
+			Connected = true;
 			Program.Log($"{Name} Connection restored");
+			foreach(var pos in Position.FindPositions(Exchanges.Binance, Name))
+			{
+				pos.InitPos();
+			}
 		}
 
 		private void Subscription_ConnectionLost()
 		{
 			Program.Log($"{Name} Connection lost");
+
+			Connected = false;
+
+			Task.Run(() =>
+			{
+				do
+				{
+					Functions.CreateTimer(TimeSpan.FromSeconds(30), () =>
+					{
+						if (!Connected)
+						{
+							TryToSubscribe(Interval);
+						}
+					});
+				}
+				while (Connected == false);
+			});
+		}
+
+		public bool TryToSubscribe(OHLCVInterval interval)
+		{
+			SocketClient ??= new BinanceSocketClient(new BinanceSocketClientOptions()
+			{
+				AutoReconnect = true,
+				ReconnectInterval = TimeSpan.FromSeconds(5)
+			});
+
+			Subscription?.Close();
+
+			KlineInterval klv = ConvertToExchangeInterval(interval);
+
+			var result = SocketClient.Spot.SubscribeToKlineUpdates(Name, klv, OnKlineUpdate);
+
+			if (result.Success)
+			{
+				Connected = true;
+				Subscription = result.Data;
+				Subscription.ConnectionLost += Subscription_ConnectionLost;
+				Subscription.ConnectionRestored += Subscription_ConnectionRestored;
+			}
+
+			return result.Success;
 		}
 
 		private void OnKlineUpdate(IBinanceStreamKlineData obj)

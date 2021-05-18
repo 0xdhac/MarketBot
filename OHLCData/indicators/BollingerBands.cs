@@ -10,7 +10,7 @@ namespace MarketBot.indicators
 {
 	class BollingerBands : Indicator
 	{
-		public BollingerBands(SymbolData data) : base(data) { }
+		public BollingerBands(HList<OHLCVPeriod> data) : base(data) { }
 
 		public override void BuildDataTable()
 		{

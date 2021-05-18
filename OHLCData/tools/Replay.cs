@@ -28,6 +28,7 @@ namespace MarketBot
 	{
 		public List<BaseStrategy> Entry_Strategy = new List<BaseStrategy>();
 		public PriceSetter Risk_Setter;
+		public PriceSetter Profit_Setter;
 		//public PriceSetter Reward_Setter;
 		public List<BaseCondition> Entry_Conditions = new List<BaseCondition>();
 		public List<ExitStrategy> Exit_Strategies = new List<ExitStrategy>();
@@ -108,7 +109,6 @@ namespace MarketBot
 			{
 				foreach(var pos in positions)
 				{
-					//Console.WriteLine($"[{Symbol.Symbol}] Available(Close) += {pos.Entry * pos.Quantity:.00}");
 					Balance.Available += pos.Entry * pos.DesiredQuantity;
 				}
 
@@ -132,12 +132,28 @@ namespace MarketBot
 
 			foreach (var position in positions)
 			{
+				((OCOExit)position.ExitStrategies[0]).Profit = Profit_Setter.GetPrice(NextPeriod, position.Type);
 				CheckForExit(NextPeriod, position);
 			}
 
 			NextPeriod++;
 
 			return true;
+		}
+
+		public void Reset()
+		{
+			NextPeriod = 0;
+			Finished = false;
+			Wins = 0;
+			Losses = 0;
+			Trades = 0;
+			TradePeriodsTotal = 0;
+			TotalRisk = 0;
+			TotalProfit = 0;
+			TimeInLosing = new TimeSpan();
+			TimeInWinning = new TimeSpan();
+			TimeInTrades = new TimeSpan();
 		}
 
 		public void Run()
@@ -204,22 +220,27 @@ namespace MarketBot
 
 			try
 			{
-				Risk_Setter = new ATRRisk(periods, true);
+				//Risk_Setter = new ATRRisk(periods, true);
+				Risk_Setter = new SuperTrendRisk(periods);
+				Profit_Setter = new ReversedRSIProfit(periods, 14, 78);
 				//Risk_Setter = new PercentBasedRisk(periods, (decimal)0.02);
 				//Exit_Strategy.Add()
 				//Exit_Strategy = new TrailingStopLossExit(periods, Risk_Setter.GetPrice);
 				//Exit_Strategy = new ADXExit(periods); // OnPeriodClose
 				//Exit_Strategy = new EMAExit(periods, 50);
-				Entry_Strategy.Add(new MACDCrossover(periods)); //*
-				Entry_Strategy.Add(new Star(periods)); //*
+				//Entry_Strategy.Add(new MACDCrossover(periods)); //*
+				//Entry_Strategy.Add(new Star(periods)); //*
 				Entry_Strategy.Add(new DICrossover(periods)); //*
-				Entry_Strategy.Add(new ThreelineStrike(periods));
+				//Entry_Strategy.Add(new ThreelineStrike(periods));
+				Entry_Strategy.Add(new GoldenCross(periods, 9, 48));
 
-				Entry_Conditions.Add(new EMACondition(periods, 10));
+				Entry_Conditions.Add(new EMACondition(periods, 800));
+				Entry_Conditions.Add(new SuperTrendCondition(periods));
+				//Entry_Conditions.Add(new CMFCondition(periods));
 				//Entry_Conditions.Add(new RSICondition(periods, 80, 40));
-				//Entry_Conditions.Add(new ADXCondition(periods, 25));
-				Exit_Strategies.Add(new RSIExit(periods, 78, 30, false));
-				Exit_Strategies.Add(new EMAExit(periods, 800));
+				//Entry_Conditions.Add(new ADXCondition(periods, 15));
+				//Exit_Strategies.Add(new RSIExit(periods, 77, 30, false));
+				//Exit_Strategies.Add(new EMAExit(periods, 800));
 				//Exit_Strategies.Add(new ADXExit(periods));
 			}
 			catch (Exception e)
@@ -252,9 +273,14 @@ namespace MarketBot
 				}
 			}
 
+			if (Risk_Setter != null && !Risk_Setter.CanSetPrice(period, signal))
+			{
+				return;
+			}
+
 			List<ExitStrategy> exits = new List<ExitStrategy>()
 			{
-				//new OCOExit(Symbol.Data.Periods, Risk_Setter.GetPrice, 3),
+				new OCOExit(Symbol.Data.Periods, Risk_Setter.GetPrice, Profit_Setter.GetPrice),
 				//new TimeLimitExit(Symbol.Data.Periods, new TimeSpan(7, 0, 0, 0), Symbol[period].CloseTime, true),
 				//new StoplossExit(Symbol.Data.Periods, Risk_Setter.GetPrice)
 			};
@@ -312,7 +338,7 @@ namespace MarketBot
 			Balance.Available -= bet_amount;
 			//Console.WriteLine($"[{Symbol.Symbol}] Available(Entry) -= {bet_amount:.00}");
 			decimal entry = Symbol[period].Close;
-			new Position(Symbol.Exchange, Symbol.Symbol, signal, Symbol[period].CloseTime, entry, bet_amount / entry, false)
+			new Position(Symbol.Exchange, Symbol.Symbol, Interval, signal, Symbol[period].CloseTime, entry, bet_amount / entry)
 			{
 				ExitStrategies = exits
 			};

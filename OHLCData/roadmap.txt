@@ -35,7 +35,44 @@ else
 	Auto exit trades based on time and when they are at or above exit price (7 days or so)
 Use GeneticSharp and Skender.Stock.Indicators
 
-foreach(var strat in Entry_Strategies)
-{
-	
-}
+Find out what happens to an OCOs ListOrderStatus once one of its legs triggers or it gets deleted
+
+On cancel, ListOrderStatus is set to: Done
+
+On created, ListOrderStatus is set to: Executing
+
+On price reached: ListOrderStatus is set to: NOT SET TO ANYTHING
+
+On finished: ListOrderStatus is set to: Done
+
+OcoOrderUpdate: ([BTCUSDT] ListClientOrderId: n21QgFb0tRU54CXWFdfRql, OrderListId: 24822671, ListOrderStatus: Executing, ListStatusType: ExecutionStarted)
+OrderUpdate: ([BTCUSDT] Status: New, ListId: 24822671, OrderId: 5555801550, ExecutionType: New, 4/16/2021 6:25:05 AM, 4/16/2021 6:25:05 AM)
+OrderUpdate: ([BTCUSDT] Status: New, ListId: 24822671, OrderId: 5555801551, ExecutionType: New, 4/16/2021 6:25:05 AM, 4/16/2021 6:25:05 AM)
+OcoOrderUpdate: ([BTCUSDT] ListClientOrderId: n21QgFb0tRU54CXWFdfRql, OrderListId: 24822671, ListOrderStatus: Done, ListStatusType: Done)
+OrderUpdate: ([BTCUSDT] Status: Canceled, ListId: 24822671, OrderId: 5555801550, ExecutionType: Canceled, 4/16/2021 6:25:05 AM, 4/16/2021 6:25:09 AM)
+OrderUpdate: ([BTCUSDT] Status: Canceled, ListId: 24822671, OrderId: 5555801551, ExecutionType: Canceled, 4/16/2021 6:25:05 AM, 4/16/2021 6:25:09 AM)
+OcoOrderUpdate: ([BTCUSDT] ListClientOrderId: KqQhYKQT4LmZRXk9LGBgOv, OrderListId: 24822729, ListOrderStatus: Executing, ListStatusType: ExecutionStarted)
+OrderUpdate: ([BTCUSDT] Status: New, ListId: 24822729, OrderId: 5555805851, ExecutionType: New, 4/16/2021 6:25:26 AM, 4/16/2021 6:25:26 AM)
+OrderUpdate: ([BTCUSDT] Status: New, ListId: 24822729, OrderId: 5555805852, ExecutionType: New, 4/16/2021 6:25:26 AM, 4/16/2021 6:25:26 AM)
+OrderUpdate: ([BTCUSDT] Status: Expired, ListId: 24822729, OrderId: 5555805852, ExecutionType: Expired, 4/16/2021 6:25:26 AM, 4/16/2021 6:28:14 AM)
+OrderUpdate: ([BTCUSDT] Status: New, ListId: 24822729, OrderId: 5555805851, ExecutionType: New, 4/16/2021 6:25:26 AM, 4/16/2021 6:28:14 AM)
+OrderUpdate: ([BTCUSDT] Status: Filled, ListId: 24822729, OrderId: 5555805851, ExecutionType: Trade, 4/16/2021 6:25:26 AM, 4/16/2021 6:28:14 AM)
+OcoOrderUpdate: ([BTCUSDT] ListClientOrderId: KqQhYKQT4LmZRXk9LGBgOv, OrderListId: 24822729, ListOrderStatus: Done, ListStatusType: Done)
+
+Cases:
+Creating new order on symbol close and making sure I don't cancel an order that might be finishing up
+
+
+OnSymbolClose:
+if(OCO != Done)
+	CancelOco
+	Exit = PriceSetter.GetPrice();
+	CreateNewOco
+
+OnOrderUpdate
+if(OrderIsExitLeg && 
+
+
+38.98392413232465, -89.11090100167166
+38.97813465635318, -89.08930628938901
+38.841297841594255, -89.30214294022879

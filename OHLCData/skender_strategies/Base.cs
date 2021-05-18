@@ -102,5 +102,17 @@ namespace MarketBot.skender_strategies
 		}
 
 		public abstract decimal GetPrice(int period, SignalType signal);
+		public bool CanSetPrice(int period, SignalType signal)
+		{
+			try
+			{
+				GetPrice(period, signal);
+				return true;
+			}
+			catch (Exception)
+			{
+				return false;
+			}
+		}
 	}
 }

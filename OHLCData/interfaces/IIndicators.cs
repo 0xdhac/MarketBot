@@ -12,14 +12,14 @@ namespace MarketBot.interfaces
 	{
 		public List<object> Inputs = new List<object>();
 		public DataTable Data = new DataTable();
-		public SymbolData Source;
+		public HList<OHLCVPeriod> Source;
 		public EventHandler OnCalculate;
 
-		public Indicator(SymbolData source, params object[] inputs)
+		public Indicator(HList<OHLCVPeriod> source, params object[] inputs)
 		{
 			Inputs.AddRange(inputs);
 			Source = source;
-			Source.Data.Periods.OnAdd_PrePost += PeriodAdded;
+			Source.OnAdd_PrePost += PeriodAdded;
 			BuildDataTable();
 			FullCalculate();
 		}
@@ -45,7 +45,7 @@ namespace MarketBot.interfaces
 
 		public virtual void FullCalculate()
 		{
-			for(int period = 0; period < Source.Data.Periods.Count; period++)
+			for(int period = 0; period < Source.Count; period++)
 			{
 				Calculate(period);
 
@@ -58,7 +58,7 @@ namespace MarketBot.interfaces
 
 		public virtual void PeriodAdded(object sender, EventArgs e)
 		{
-			Calculate(Source.Data.Periods.Count - 1);
+			Calculate(Source.Count - 1);
 
 			if (null != OnCalculate)
 			{

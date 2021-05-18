@@ -17,7 +17,7 @@ namespace MarketBot.indicators
 			get => Value<decimal>("value", index);
 		}
 
-		public RSI(SymbolData data, int length) : base(data, length)
+		public RSI(HList<OHLCVPeriod> data, int length) : base(data, length)
 		{
 			if(length <= 0)
 			{
@@ -81,14 +81,20 @@ namespace MarketBot.indicators
 					current_loss = Math.Abs(change);
 				}
 
-				avg_gain = ((previous_average_gain * ((int)Inputs[0] - 1)) + current_gain) / (decimal)(int)Inputs[0];
-				avg_loss = ((previous_average_loss * ((int)Inputs[0] - 1)) + current_loss) / (decimal)(int)Inputs[0];
+				avg_gain = ((previous_average_gain * ((int)Inputs[0] - 1)) + current_gain) / (int)Inputs[0];
+				avg_loss = ((previous_average_loss * ((int)Inputs[0] - 1)) + current_loss) / (int)Inputs[0];
 			}
 
-			decimal rs = avg_gain / avg_loss;
-			decimal rsi = 100 - (100 / (1 + rs));
-
-			return Data.Rows.Add(true, avg_gain, avg_loss, rsi);
+			if(avg_loss == 0)
+			{
+				return Data.Rows.Add(true, avg_gain, avg_loss, 100m);
+			}
+			else
+			{
+				decimal rs = avg_gain / avg_loss;
+				decimal rsi = 100 - (100 / (1 + rs));
+				return Data.Rows.Add(true, avg_gain, avg_loss, rsi);
+			}
 		}
 
 		public override string GetName()

@@ -11,15 +11,16 @@ namespace MarketBot.skender_strategies.exit_strategy
 	{
 		public decimal? Profit;
 		public decimal? Risk;
-		private decimal ProfitRatio;
 		Func<int, SignalType, decimal> RiskSetter;
+		Func<int, SignalType, decimal> ProfitSetter;
 
 		public OCOExit(
 			HList<OHLCVPeriod> history, 
-			Func<int, SignalType, decimal> risk_setter, decimal profit_ratio) : 
+			Func<int, SignalType, decimal> risk_setter, 
+			Func<int, SignalType, decimal> profit_setter) : 
 			base(history)
 		{
-			ProfitRatio = profit_ratio;
+			ProfitSetter = profit_setter;
 			RiskSetter = risk_setter;
 		}
 
@@ -28,7 +29,7 @@ namespace MarketBot.skender_strategies.exit_strategy
 			decimal entry = History[period].Close;
 
 			Risk = RiskSetter(period, entry_type);
-			Profit = ((entry - Risk) * ProfitRatio) + entry;
+			Profit = ProfitSetter(period, entry_type);
 		}
 
 		public override bool ShouldExit(int period, SignalType entry_signal, out decimal price)

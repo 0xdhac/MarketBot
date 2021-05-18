@@ -11,13 +11,13 @@ namespace MarketBot.indicators
 	// True range function and indicator
 	class TR : Indicator
 	{
-		public TR(SymbolData data) : base(data) { }
+		public TR(HList<OHLCVPeriod> data) : base(data) { }
 
 		public override DataRow Calculate(int period)
 		{
 			if(period > 0)
 			{
-				decimal tr = GetTR(Source.Data.Periods, period);
+				decimal tr = GetTR(Source, period);
 				return Data.Rows.Add(true, tr);
 			}
 			else

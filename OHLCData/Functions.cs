@@ -25,5 +25,24 @@ namespace MarketBot
 
 			return output;
 		}
+
+		public static long LongRandom(long min, long max, Random rand)
+		{
+			long result = rand.Next((Int32)(min >> 32), (Int32)(max >> 32));
+			result = (result << 32);
+			result = result | (long)rand.Next((Int32)min, (Int32)max);
+			return result;
+		}
+
+		public static void CreateTimer(TimeSpan delay, Action function)
+		{
+			Task.Run(() =>
+			{
+				int ms = Convert.ToInt32(delay.TotalMilliseconds);
+				System.Threading.Thread.Sleep(ms);
+
+				function();
+			});
+		}
 	}
 }

@@ -40,7 +40,7 @@ namespace MarketBot.tools
 
 		private static BetSizer BetSizer = new BetSizer()
 		{
-			BetPercent = (decimal)0.15,
+			BetPercent = (decimal)0.2,
 			ResizeEvery = 1,
 			Balance = Balance
 		};
@@ -101,9 +101,6 @@ namespace MarketBot.tools
 			Program.Print("Loading replay kline data..");
 			foreach(var pair in Pairs)
 			{
-				if (Blacklist.IsBlacklisted(Exchanges.Binance, pair))
-					continue;
-
 				var files = BuildFileList(pair, interval, DateTime.UtcNow.AddMonths(-13), DateTime.UtcNow.AddMonths(-1));
 				//var files = BuildFileList(pair, interval, new DateTime(2017, 7, 1), new DateTime(2018, 12, 1));
 
@@ -124,14 +121,35 @@ namespace MarketBot.tools
 			Program.Print("Applying indicators..");
 			foreach(var replay in Replays)
 			{
-				replay.Balance = Balance;
-				replay.BetSizer = BetSizer;
-				replay.BetSizer.UpdateBetAmount();
 				replay.SetupStrategies();
 				replay.OnReplayFinished += ReplayFinished;
 				Console.Write(".");
 			}
 			Console.WriteLine();
+
+			// Create list of coins that don't do so well
+			Program.Print("Creating blacklist..");
+			List<Replay> ToRemove = new List<Replay>();
+			foreach (var replay in Replays)
+			{
+				while (replay.RunNextPeriod()) ;
+
+				var res = replay.Results();
+
+				if (res.Profitability < (decimal)1.2 || res.Trades < 30)
+					ToRemove.Add(replay);
+			}
+			Console.WriteLine();
+
+			// Set up analyzer after removing undesirable coins
+			Replays.RemoveAll(r => ToRemove.Contains(r));
+			Replays.ForEach(r =>
+			{
+				r.Reset();
+				r.Balance = Balance;
+				r.BetSizer = BetSizer;
+				r.BetSizer.UpdateBetAmount();
+			});
 
 			Program.Print("Running replays..");
 			while(Replays.TrueForAll(r => r.Finished) == false)
@@ -148,23 +166,17 @@ namespace MarketBot.tools
 			Console.WriteLine();
 			Console.WriteLine($"Starting amount: ${Balance.Starting:.00}, Ending amount: ${Balance.Total:.00}");
 			Console.WriteLine($"GOA: {(Balance.Total - Balance.Starting) / (Balance.Starting) * 100:.00}%");
-
-			var results = Replays.Select(r => r.Results()).ToList();
-			foreach(var result in results)
-			{
-				//if (!result.Profitability.HasValue || result.Profitability < (decimal)1.3)
-				//	Console.WriteLine(result.Symbol);
-				//Console.WriteLine($"[{result.Symbol}] Profitability: {result.Profitability:.00}");
-			}
+			
 			/*
 			foreach (var replay in Replays)
 			{
 				var result = replay.Results();
 
-				if (result.Profitability < (decimal)1.3)
+				if (result.Trades > 25 && result.Profitability < (decimal)1.3)
 					Console.WriteLine($"{replay.Symbol.Symbol}");
 			}
 			*/
+			
 		}
 
 		private static void ReplayFinished(object sender, EventArgs e)

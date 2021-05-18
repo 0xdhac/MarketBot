@@ -10,7 +10,7 @@ namespace MarketBot.indicators
 {
 	class ATR : Indicator
 	{
-		public ATR(SymbolData data, int length) : base(data, length)
+		public ATR(HList<OHLCVPeriod> data, int length) : base(data, length)
 		{
 			
 		}
@@ -28,7 +28,7 @@ namespace MarketBot.indicators
 			}
 			else
 			{
-				decimal atr = GetATR(Source.Data.Periods, period, (int)Inputs[0]);
+				decimal atr = GetATR(Source, period, (int)Inputs[0]);
 				return Data.Rows.Add(true, atr);
 			}
 		}

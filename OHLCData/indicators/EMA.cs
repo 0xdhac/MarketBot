@@ -11,7 +11,7 @@ namespace MarketBot.indicators
 {
 	public class EMA : Indicator
 	{
-		public EMA(SymbolData data, int length) : base(data, length)
+		public EMA(HList<OHLCVPeriod> data, int length) : base(data, length)
 		{
 		}
 

@@ -22,18 +22,10 @@ namespace MarketBot.skender_strategies.entry_conditions
 
 			if (!Data[period].Adx.HasValue || !Data[period].Mdi.HasValue || !Data[period].Pdi.HasValue)
 				return new SignalType[] { };
-			
-			if(Data[period].Adx.Value >= ADX)
-			{
-				if (Data[period].Pdi.Value > Data[period].Mdi.Value)
-				{
-					return new SignalType[] { SignalType.Long };
-				}
 
-				if (Data[period].Pdi.Value < Data[period].Mdi.Value)
-				{
-					return new SignalType[] { SignalType.Short };
-				}
+			if (Data[period].Adx.Value >= ADX)
+			{
+				return new SignalType[] { SignalType.Long, SignalType.Short };
 			}
 
 			return new SignalType[] { };

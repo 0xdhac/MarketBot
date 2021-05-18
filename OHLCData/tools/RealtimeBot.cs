@@ -16,6 +16,7 @@ namespace MarketBot.tools
 	static class RealtimeBot
 	{
 		public static List<SymbolData> Symbols = new List<SymbolData>();
+		public static Dictionary<Exchanges, Dictionary<string, bool>> PositionsLoaded = new Dictionary<Exchanges, Dictionary<string, bool>>();
 		public static Dictionary<Exchanges, Dictionary<string, bool>> TradingPairs = new Dictionary<Exchanges, Dictionary<string, bool>>();
 		public static Dictionary<Exchanges, Dictionary<string, List<skender_strategies.BaseStrategy>>> Entry_Strategies = new Dictionary<Exchanges, Dictionary<string, List<skender_strategies.BaseStrategy>>>();
 		public static Dictionary<Exchanges, Dictionary<string, List<ExitStrategy>>> Exit_Strategies = new Dictionary<Exchanges, Dictionary<string, List<ExitStrategy>>>();
@@ -26,6 +27,7 @@ namespace MarketBot.tools
 		public static Dictionary<Exchanges, int> Trades = new Dictionary<Exchanges, int>();
 		public static Dictionary<Exchanges, int> Wins = new Dictionary<Exchanges, int>();
 		public static Dictionary<Exchanges, int> Losses = new Dictionary<Exchanges, int>();
+		public static OHLCVInterval Interval = OHLCVInterval.OneMinute;
 		public static bool Finish = false;
 		public static int BuyCount = 0;
 		private static decimal BetAmount = 0;
@@ -48,7 +50,6 @@ namespace MarketBot.tools
 
 			ExchangeTasks.UpdateExchangeInfo(Exchanges.Binance);
 			ExchangeTasks.GetWallet(Exchanges.Binance, OnWalletLoaded);
-			ExchangeTasks.LoadPositions(Exchanges.Binance);
 			ExchangeTasks.GetTradingPairs(Exchanges.Binance, Program.GetConfigSetting("BINANCE_SYMBOL_REGEX"), TradingPairsRetrieved);
 			ExchangeTasks.CreateUserStream(Exchanges.Binance);
 		}
@@ -80,6 +81,7 @@ namespace MarketBot.tools
 				}
 			}
 
+			Program.Print("Loading Symbols");
 			SequentialSymbolDownload(Exchanges.Binance);
 		}
 
@@ -87,7 +89,11 @@ namespace MarketBot.tools
 		{
 			if(Loaded < TradingPairs[ex].Count)
 			{
-				new SymbolData(ex, OHLCVInterval.ThirtyMinute, TradingPairs[ex].ElementAt(Loaded++).Key, 2000, SymbolLoaded, true);
+				new SymbolData(ex, Interval, TradingPairs[ex].ElementAt(Loaded++).Key, 2000, SymbolLoaded, true);
+			}
+			else
+			{
+				Console.WriteLine("");
 			}
 		}
 
@@ -100,7 +106,7 @@ namespace MarketBot.tools
 
 			Symbols.Add(data);
 
-			throw new Exception("Apply exit strategies to any Position objects for this symbol");
+			Console.Write(".");
 
 			if (!Entry_Strategies.ContainsKey(data.Exchange))
 			{
@@ -108,6 +114,7 @@ namespace MarketBot.tools
 				Price_Setters.Add(data.Exchange, new Dictionary<string, List<PriceSetter>>());
 				Entry_Conditions.Add(data.Exchange, new Dictionary<string, List<BaseCondition>>());
 				Exit_Strategies.Add(data.Exchange, new Dictionary<string, List<ExitStrategy>>());
+				PositionsLoaded.Add(data.Exchange, new Dictionary<string, bool>());
 			}
 
 			if (!Entry_Strategies[data.Exchange].ContainsKey(data.Symbol))
@@ -116,6 +123,7 @@ namespace MarketBot.tools
 				Entry_Conditions[data.Exchange][data.Symbol] = new List<BaseCondition>();
 				Price_Setters[data.Exchange][data.Symbol] = new List<PriceSetter>();
 				Exit_Strategies[data.Exchange][data.Symbol] = new List<ExitStrategy>();
+				PositionsLoaded[data.Exchange][data.Symbol] = true;
 			}
 			
 			//Entry_Strategies[data.Exchange][data.Symbol].Add(new CMFCrossover(data, 55, 21));
@@ -123,13 +131,25 @@ namespace MarketBot.tools
 			//Entry_Strategies[data.Exchange][data.Symbol].Add(new Star(data.Data.Periods));
 			//Entry_Strategies[data.Exchange][data.Symbol].Add(new ThreelineStrike(data.Data.Periods));
 			Entry_Strategies[data.Exchange][data.Symbol].Add(new DICrossover(data.Data.Periods));
+			Entry_Strategies[data.Exchange][data.Symbol].Add(new GoldenCross(data.Data.Periods, 9, 48));
 
 
 			Entry_Conditions[data.Exchange][data.Symbol].Add(new EMACondition(data.Data.Periods, 800));
-			Entry_Conditions[data.Exchange][data.Symbol].Add(new ADXCondition(data.Data.Periods, 30));
-			Entry_Conditions[data.Exchange][data.Symbol].Add(new CMFCondition(data.Data.Periods));
+			Entry_Conditions[data.Exchange][data.Symbol].Add(new SuperTrendCondition(data.Data.Periods));
+			//Entry_Conditions[data.Exchange][data.Symbol].Add(new ADXCondition(data.Data.Periods, 30));
+			//Entry_Conditions[data.Exchange][data.Symbol].Add(new CMFCondition(data.Data.Periods));
+			Price_Setters[data.Exchange][data.Symbol].Add(new ATRRisk(data.Data.Periods, true));
+			Price_Setters[data.Exchange][data.Symbol].Add(new ReversedRSIProfit(data.Data.Periods, 14, 77));
 
-			Exit_Strategies[data.Exchange][data.Symbol].Add(new RSIExit(data.Data.Periods, 80, 40, false));
+			//Exit_Strategies[data.Exchange][data.Symbol].Add(new RSIExit(data.Data.Periods, 77, 40, false));
+			Position.LoadSymbolPositions(data.Symbol);
+			foreach (var pos in Position.FindPositions(data.Exchange, data.Symbol))
+			{
+				pos.RiskSetter = Price_Setters[data.Exchange][pos.Symbol][0];
+				pos.ProfitSetter = Price_Setters[data.Exchange][pos.Symbol][1];
+				pos.PriceHistory = Symbols.FirstOrDefault(s => s.Symbol == pos.Symbol)?.Data;
+				pos.InitPos();
+			}
 
 			SequentialSymbolDownload(data.Exchange);
 
@@ -169,7 +189,8 @@ namespace MarketBot.tools
 				return;
 			}
 
-			SymbolData sym = (SymbolData)data;
+			SymbolData sym = data as SymbolData;
+
 			int period = sym.Data.Periods.Count - 1;
 			//Console.WriteLine($"{sym.Symbol}: Close");
 			// If not blacklisted and no discrepency in the symbol data
@@ -188,6 +209,11 @@ namespace MarketBot.tools
 
 		public static void OnEntrySignal(SymbolData symbol, int period, SignalType signal)
 		{
+			if(PositionsLoaded.ContainsKey(symbol.Exchange) == false || PositionsLoaded[symbol.Exchange].ContainsKey(symbol.Symbol) == false)
+			{
+				Program.Print("Ignored signal: PositionsLoaded = false");
+				return;
+			}
 			// Disable short positions for now
 			if(signal == SignalType.Short)
 			{
@@ -216,23 +242,6 @@ namespace MarketBot.tools
 				}
 			}
 
-			List<ExitStrategy> exits = new List<ExitStrategy>()
-			{
-				new OCOExit(symbol.Data.Periods, Price_Setters[symbol.Exchange][symbol.Symbol][0].GetPrice, 3),
-				new TimeLimitExit(symbol.Data.Periods, new TimeSpan(7, 0, 0, 0), symbol[period].CloseTime, true)
-			};
-
-			exits.Add(Exit_Strategies[symbol.Exchange][symbol.Symbol][0]);
-
-
-			foreach (var strat in exits)
-			{
-				strat.Update(period, signal);
-
-				if (strat.ShouldExit(period, signal, out decimal scratch))
-					return;
-			}
-
 			decimal bet_amount = BetAmount;
 			if(BetAmount > Wallets[symbol.Exchange].Available)
 			{
@@ -242,22 +251,26 @@ namespace MarketBot.tools
 				}
 			}
 
-			int max_orders = int.Parse(Program.GetConfigSetting("NUM_ORDERS_BEFORE_STOPPING_BOT"));
-			if (BuyCount >= max_orders && max_orders != 0)
+			if(!int.TryParse(Program.GetConfigSetting("NUM_ORDERS_BEFORE_STOPPING_BOT"), out int max_orders))
+			{
+				throw new Exception($"Config setting not correct: 'NUM_ORDERS_BEFORE_STOPPING_BOT'");
+			}
+
+			if (Position.Positions.Count >= max_orders && max_orders != 0)
 			{
 				Finish = true;
 				Program.Print("Stopping bot. Max buy orders reached.");
 				return;
 			}
 
-			decimal entry_price = symbol[period].Close;
-			decimal profit_price = ((OCOExit)exits[0]).Profit.Value;
-			decimal risk_price = ((OCOExit)exits[0]).Risk.Value;
+			decimal entry_price = ExchangeTasks.GetTickSizeAdjustedValue(Exchanges.Binance, symbol.Symbol, symbol[period].Close);
+			decimal profit_price = Price_Setters[symbol.Exchange][symbol.Symbol][1].GetPrice(period, signal);
+			decimal risk_price = Price_Setters[symbol.Exchange][symbol.Symbol][0].GetPrice(period, signal);
 
-			if (Math.Abs(((double)profit_price - (double)entry_price) / (double)entry_price) > 0.2)
-			{
-				return;
-			}
+			//if (Math.Abs(((double)profit_price - (double)entry_price) / (double)entry_price) > 0.2)
+			//{
+			//	return;
+			//}
 
 			if (risk_price >= entry_price || profit_price <= entry_price)
 				throw new Exception($"Invalid entry or risk on symbol {symbol.Symbol}: Entry: {entry_price:.00}, Risk: {risk_price:.00}, Profit: {profit_price:.00}");
@@ -267,11 +280,15 @@ namespace MarketBot.tools
 				return;
 
 			// Create position
-			var pos = new Position(symbol.Exchange, symbol.Symbol, signal, symbol[period].CloseTime, entry_price, bet_amount / entry_price, true)
+			decimal quantity = ExchangeTasks.GetStepSizeAdjustedQuantity(Exchanges.Binance, symbol.Symbol, bet_amount / entry_price);
+			var pos = new Position(symbol.Exchange, symbol.Symbol, Interval, signal, symbol[period].CloseTime, entry_price, quantity)
 			{
-				ExitStrategies = exits
+				ProfitSetter = Price_Setters[symbol.Exchange][symbol.Symbol][1],
+				PriceHistory = symbol.Data,
+				Risk = ExchangeTasks.GetTickSizeAdjustedValue(symbol.Exchange, symbol.Symbol, risk_price),
+				Profit = ExchangeTasks.GetTickSizeAdjustedValue(symbol.Exchange, symbol.Symbol, profit_price)
 			};
-			pos.CreateOrder();
+			pos.EnterMarket();
 		}
 	}
 }

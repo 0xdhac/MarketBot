@@ -11,7 +11,7 @@ namespace MarketBot.indicators
 	public class CMF : Indicator
 	{
 		int Length = 0;
-		public CMF(SymbolData data, int length) : base(data, length){}
+		public CMF(HList<OHLCVPeriod> data, int length) : base(data, length){}
 
 		public decimal this[int index]
 		{

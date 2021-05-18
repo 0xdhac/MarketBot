@@ -10,7 +10,7 @@ namespace MarketBot.indicators
 {
 	class ADX : Indicator
 	{
-		public ADX(SymbolData data, int length) : base(data, length){}
+		public ADX(HList<OHLCVPeriod> data, int length) : base(data, length){}
 
 		public override DataRow Calculate(int period)
 		{
@@ -21,7 +21,7 @@ namespace MarketBot.indicators
 				return Data.Rows.Add(false, 0, 0, 0, 0, 0, 0, 0, 0);
 			}
 
-			decimal truerange = TR.GetTR(Source.Data.Periods, period);
+			decimal truerange = TR.GetTR(Source, period);
 
 			decimal upmove = Source[period].High - Source[period - 1].High;
 			decimal downmove = Source[period].Low - Source[period - 1].Low;

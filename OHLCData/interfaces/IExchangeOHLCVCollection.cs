@@ -45,7 +45,7 @@ namespace MarketBot
 		bool CollectionFailed { get; set; }
 		string Name { get; set; }
 		HList<OHLCVPeriod> Periods { get; set; }
-		void CollectApiOHLCV(OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_updates, DateTime? start = null);
+		void CollectApiOHLCV();
 		OHLCVPeriod this[int index] { get; }
 	}
 
@@ -60,6 +60,6 @@ namespace MarketBot
 		{
 			Periods = new HList<OHLCVPeriod>();
 		}
-		public void CollectApiOHLCV(OHLCVInterval interval, int periods, Action<IExchangeOHLCVCollection> callback, bool screener_updates, DateTime? start = null) { }
+		public void CollectApiOHLCV() { }
 	}
 }

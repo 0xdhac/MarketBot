@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using Binance.Net.Enums;
 using Binance.Net.Objects.Spot.MarketData;
 
-namespace MarketBot.exchanges.binance
+namespace MarketBot
 {
 	static class BinanceMarket
 	{
@@ -112,6 +112,25 @@ namespace MarketBot.exchanges.binance
 				}
 
 				return output;
+			}
+		}
+
+		public static bool GetSymbolPrice(string symbol, out decimal price)
+		{
+			using (var client = new BinanceClient())
+			{
+				var result = client.Spot.Market.GetCurrentAvgPrice(symbol);
+
+				if (result.Success)
+				{
+					price = result.Data.Price;
+					return true;
+				}
+				else
+				{
+					price = default;
+					return false;
+				}
 			}
 		}
 	}

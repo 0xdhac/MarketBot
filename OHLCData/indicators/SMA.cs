@@ -12,7 +12,7 @@ namespace MarketBot.indicators
 	{
 		public int Length;
 
-		public SMA(SymbolData data, int length) : base(data, length)
+		public SMA(HList<OHLCVPeriod> data, int length) : base(data, length)
 		{
 			Length = length;
 		}

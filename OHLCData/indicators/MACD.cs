@@ -13,7 +13,7 @@ namespace MarketBot.indicators
 		List<Tuple<bool, decimal>> ShortEMA = new List<Tuple<bool, decimal>>();
 		List<Tuple<bool, decimal>> LongEMA = new List<Tuple<bool, decimal>>();
 
-		public MACD(SymbolData data, int short_ema, int long_ema, int signal_ema) : base(data, short_ema, long_ema, signal_ema){}
+		public MACD(HList<OHLCVPeriod> data, int short_ema, int long_ema, int signal_ema) : base(data, short_ema, long_ema, signal_ema){}
 
 		public override DataRow Calculate(int period)
 		{

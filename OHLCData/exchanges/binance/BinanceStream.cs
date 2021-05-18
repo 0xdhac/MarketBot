@@ -84,13 +84,9 @@ namespace MarketBot.exchanges.binance
 
 		private static void OrderUpdate(BinanceStreamOrderUpdate update)
 		{
-			List<Position> ToRemove = new List<Position>();
-			Console.WriteLine($"{update.Symbol}: OrderUpdate");
-
-			foreach(var pos in Position.Positions)
+			foreach(var pos in Position.Positions.ToArray())
 			{
-				if(update.OriginalClientOrderId == pos.OrderId ||
-					update.OriginalClientOrderId == pos.ExitOrderId)
+				if(pos.Symbol == update.Symbol)
 				{
 					pos.OrderStreamUpdate(update);
 				}
@@ -239,11 +235,6 @@ namespace MarketBot.exchanges.binance
 			
 			}
 			*/
-
-			foreach(var pos in ToRemove)
-			{
-				Position.Positions.Remove(pos);
-			}
 		}
 
 		private static void OcoOrderUpdate(BinanceStreamOrderList update)

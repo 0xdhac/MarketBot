@@ -26,7 +26,6 @@ namespace MarketBot
 				Console.ReadKey();
 				return;
 			}
-				
 
 			// Initialize logger settings
 			SetupLogger();
@@ -53,6 +52,8 @@ namespace MarketBot
 			Commands.Register("bot", BotCommand);
 			Commands.Register("help", HelpCommand);
 			Commands.Register("reload", ReloadCommand);
+			Commands.Register("apitester", APITester);
+			Commands.Register("ms", MarketSell);
 
 			Console.ForegroundColor = ConsoleColor.Cyan;
 			Console.WriteLine("MarketBot\n");
@@ -66,10 +67,19 @@ namespace MarketBot
 			//new Replay(Exchanges.Binance, "BTCUSDT", OHLCVInterval.OneMinute, 100000, DateTime.UtcNow);
 			//new Replay(Exchanges.Localhost, "BTCUSDT", OHLCVInterval.ThirtyMinute, 0, null);
 
-			//SymbolData s = new SymbolData(Exchanges.Localhost, "./klines/")
-			BinanceAnalyzer.RunReplays("USDT$", OHLCVInterval.ThirtyMinute);
+			//BinanceAnalyzer.RunReplays("USDT$", OHLCVInterval.ThirtyMinute);
 			//BinanceAnalyzer.DownloadKlines("USDT$", OHLCVInterval.OneDay);
+			/*
+			var pattern = "BTCUSDT" + "-" + BinanceAnalyzer.GetKlineInterval(OHLCVInterval.ThirtyMinute) + "*";
+			var files = Directory.GetFiles(GetConfigSetting("KLINE_DATA_FOLDER"), pattern).OrderBy(v1 => v1).ToArray();
+			SymbolData s = new SymbolData("BTCUSDT", files, OHLCVInterval.ThirtyMinute, CSVConversionMethod.BinanceVision);
+			ReversedRSIProfit r = new ReversedRSIProfit(s.Data.Periods, 14, 77);
 
+			for(int i = 1; i < 2000; i++)
+			{
+				Console.WriteLine($"RRSI: {r.GetPrice(s.Data.Periods.Count - i, SignalType.Long)}, Close: {s[s.Data.Periods.Count - i].Close}");
+			}
+			*/
 
 			while (true)
 			{
@@ -78,6 +88,25 @@ namespace MarketBot
 				if (!Commands.Execute(command))
 				{
 					Console.WriteLine($"- Command not found: {command}");
+				}
+			}
+		}
+
+		private static void MarketSell(string[] args)
+		{
+			if(args.Length == 1)
+			{
+				Console.WriteLine("Please specify the exchange you wish to force market sell on");
+			}
+			else
+			{
+				if(args[1].Equals("binance", StringComparison.OrdinalIgnoreCase))
+				{
+					ExchangeTasks.ForceSellAll(Exchanges.Binance);
+				}
+				else
+				{
+					Console.WriteLine($"Unknown exchange: {args[1]}");
 				}
 			}
 		}
@@ -106,7 +135,10 @@ namespace MarketBot
 			var config = new NLog.Config.LoggingConfiguration();
 
 			// Targets where to log to: File and Console
-			var logfile = new NLog.Targets.FileTarget("logfile") { FileName = "./logs/log.txt" };
+			var logfile = new NLog.Targets.FileTarget() 
+			{ 
+				FileName = "./logs/log.txt",
+			};
 
 			// Rules for mapping loggers to targets         
 			config.AddRuleForAllLevels(logfile);
@@ -127,7 +159,7 @@ namespace MarketBot
 
 		private static void TestDeleteLater(SymbolData data)
 		{
-			var result = Skender.Stock.Indicators.Indicator.GetPivotPoints(data.Data.Periods, PeriodSize.Day);
+			var result = Indicator.GetPivotPoints(data.Data.Periods, PeriodSize.Day);
 
 			foreach(var atr in result)
 			{
@@ -135,6 +167,37 @@ namespace MarketBot
 			}
 			//ATR atr = new ATR(data, 14);
 			//TR tr = new TR(data);
+		}
+
+		private static void APITester(string[] args)
+		{
+			if(args.Length == 2)
+			{
+				if(args[1].Equals("listocos"))
+				{
+					APITesting.ListOcoOrders();
+				}
+				else if (args[1].Equals("listopenocos"))
+				{
+					APITesting.ListOpenOcoOrders();
+				}
+				else if(args[1].Equals("stream"))
+				{
+					if(APITesting.Enabled == false)
+					{
+						APITesting.StartTester();
+					}
+					else
+					{
+						APITesting.StopTester();
+					}
+					
+				}
+			}
+			else
+			{
+
+			}
 		}
 
 		private static void ReloadCommand(string[] args)
@@ -175,10 +238,14 @@ namespace MarketBot
 						RealtimeBot.Start();
 					}					
 				}
-				if(args[1].Equals("finish", StringComparison.OrdinalIgnoreCase))
+				else if(args[1].Equals("finish", StringComparison.OrdinalIgnoreCase))
 				{
 					RealtimeBot.Finish = true;
 					Console.WriteLine("Now ignoring all signals.");
+				}
+				else if(args[1].Equals("positions", StringComparison.OrdinalIgnoreCase))
+				{
+					
 				}
 			}
 		}
@@ -278,7 +345,14 @@ namespace MarketBot
 
 		public static string GetConfigSetting(string setting)
 		{
-			return ConfigurationManager.AppSettings[setting];
+			if(ConfigurationManager.AppSettings[setting] == null)
+			{
+				throw new ConfigurationErrorsException($"Settig not found: {setting}");
+			}
+			else
+			{
+				return ConfigurationManager.AppSettings[setting];
+			}
 		}
 
 		public static void Print(string input)

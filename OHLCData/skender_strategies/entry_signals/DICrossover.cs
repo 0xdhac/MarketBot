@@ -12,7 +12,7 @@ namespace MarketBot.skender_strategies.entry_signals
 		public List<AdxResult> Data;
 		public DICrossover(HList<OHLCVPeriod> history) : base(history)
 		{
-			Data = Indicator.GetAdx(history).ToList();
+			Data = Indicator.GetAdx(history, 14).ToList();
 		}
 
 		public override SignalType Run(int period)

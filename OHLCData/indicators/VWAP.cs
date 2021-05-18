@@ -17,7 +17,7 @@ namespace MarketBot.indicators
 		 * if below 9period ema, only short
 		 */
 
-		public VWAP(SymbolData data) : base(data) { }
+		public VWAP(HList<OHLCVPeriod> data) : base(data) { }
 
 		public override DataRow Calculate(int period)
 		{
